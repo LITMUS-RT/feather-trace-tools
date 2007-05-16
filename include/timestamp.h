@@ -8,6 +8,8 @@ struct timestamp {
 	int			cpu;
 };
 
+int  str2event(const char* str, unsigned long *id);
+
 #define ENABLE_CMD 0L
 
 #define TIMESTAMP(id) id ## L
