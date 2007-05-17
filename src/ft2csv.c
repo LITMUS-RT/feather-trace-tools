@@ -8,6 +8,9 @@
 #include "timestamp.h"
 
 static unsigned int incomplete = 0;
+static unsigned int filtered   = 0;
+
+static unsigned long long threshold = 2700 * 100;
 
 static struct timestamp* next(struct timestamp** pos, size_t* count, int cpu)
 {
@@ -41,9 +44,12 @@ static void show_csv(struct timestamp* ts, size_t count)
 	struct timestamp* stop;
 
 	if (find_pair(start, &stop, count)) {
-		printf("%llu, %llu, %llu\n",
-		       start->timestamp, stop->timestamp, 
-		       stop->timestamp - start->timestamp);
+		if (stop->timestamp - start->timestamp > threshold)
+			filtered++;
+		else
+			printf("%llu, %llu, %llu\n",
+			       start->timestamp, stop->timestamp, 
+			       stop->timestamp - start->timestamp);
 	} else
 		incomplete++;
 	
@@ -111,7 +117,10 @@ int main(int argc, char** argv)
 
 	show_id(ts, count, id);
 
-	fprintf(stderr, "Incomplete: %d\n", incomplete);
+	fprintf(stderr, 
+		"Incomplete: %d\n"
+		"Filtered  : %d\n", 
+		incomplete, filtered);
 
 	return 0;
 }
