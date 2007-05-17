@@ -15,7 +15,15 @@ static struct event_name event_table[] =
 	EVENT(TICK),
 	EVENT(PLUGIN_SCHED),
 	EVENT(PLUGIN_TICK),
-	EVENT(CXS)
+	EVENT(CXS),
+	EVENT(ENTER_NP),
+	EVENT(EXIT_NP),
+	EVENT(SRP_UP),
+	EVENT(SRP_DOWN),
+	EVENT(PI_UP),
+	EVENT(PI_DOWN),
+	EVENT(FIFO_UP),
+	EVENT(FIFO_DOWN)
 };
 
 int  str2event(const char* str, unsigned long *id)
