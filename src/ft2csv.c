@@ -9,8 +9,9 @@
 
 static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
+static unsigned int skipped    = 0;
 
-static unsigned long long threshold = 2700 * 100;
+static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
 
 static struct timestamp* next(struct timestamp** pos, size_t* count, int cpu)
 {
@@ -74,6 +75,12 @@ static void show_csv(struct timestamp* ts, size_t count)
 
 static void show_id(struct timestamp* ts, size_t count,  unsigned long id)
 {
+	while (ts->event != id + 1 && count--) {
+		skipped++;
+		ts++;
+	}
+	if (!count)
+		return;
 	while (count--)
 		if (ts->event == id)
 			show_csv(ts++, count);
@@ -117,10 +124,11 @@ int main(int argc, char** argv)
 
 	show_id(ts, count, id);
 
-	fprintf(stderr, 
+	fprintf(stderr,
+		"Skipped   : %d\n"
 		"Incomplete: %d\n"
 		"Filtered  : %d\n", 
-		incomplete, filtered);
+		skipped, incomplete, filtered);
 
 	return 0;
 }
