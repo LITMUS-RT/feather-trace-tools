@@ -7,11 +7,13 @@
 
 #include "timestamp.h"
 
+static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
 
-static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
+//static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
+static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
 
 static struct timestamp* next(struct timestamp** pos, size_t* count, int cpu)
 {
@@ -47,10 +49,12 @@ static void show_csv(struct timestamp* ts, size_t count)
 	if (find_pair(start, &stop, count)) {
 		if (stop->timestamp - start->timestamp > threshold)
 			filtered++;
-		else
+		else {
 			printf("%llu, %llu, %llu\n",
 			       start->timestamp, stop->timestamp, 
 			       stop->timestamp - start->timestamp);
+			complete++;
+		}
 	} else
 		incomplete++;
 	
@@ -73,14 +77,30 @@ static void show_csv(struct timestamp* ts, size_t count)
 	}
 }*/
 
+
+static void skip_n(struct timestamp** ts, size_t *count, unsigned int n)
+{
+	while (n-- && (*count)--)		
+	{
+		(*ts)++;
+		skipped++;
+	}
+}
+
 static void show_id(struct timestamp* ts, size_t count,  unsigned long id)
 {
-	while (ts->event != id + 1 && count--) {
+	while (ts->event != id + 1 && count) {
 		skipped++;
 		ts++;
+		count--;
 	}
+	//printf("count == %d\n", count);
 	if (!count)
 		return;
+	skip_n(&ts, &count, 100);
+	if (!count)
+		return;
+	//printf("count == %d\n", count);
 	while (count--)
 		if (ts->event == id)
 			show_csv(ts++, count);
@@ -125,10 +145,14 @@ int main(int argc, char** argv)
 	show_id(ts, count, id);
 
 	fprintf(stderr,
-		"Skipped   : %d\n"
-		"Incomplete: %d\n"
-		"Filtered  : %d\n", 
-		skipped, incomplete, filtered);
+		"Total     : %10d\n"
+		"Skipped   : %10d\n"
+		"Complete  : %10d\n"
+		"Incomplete: %10d\n"
+		"Filtered  : %10d\n", 
+		count,
+		skipped, complete,	    
+		incomplete, filtered);
 
 	return 0;
 }
