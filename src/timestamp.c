@@ -23,7 +23,16 @@ static struct event_name event_table[] =
 	EVENT(PI_UP),
 	EVENT(PI_DOWN),
 	EVENT(FIFO_UP),
-	EVENT(FIFO_DOWN)
+	EVENT(FIFO_DOWN),
+	EVENT(PCP_UP),
+	EVENT(PCP1_DOWN),
+	EVENT(PCP2_DOWN),
+	EVENT(DPCP_INVOKE),
+	EVENT(DPCP_AGENT1),
+	EVENT(DPCP_AGENT2),
+	EVENT(MPCP_UP),
+	EVENT(MPCP_DOWN),
+	EVENT(SRPT)
 };
 
 int  str2event(const char* str, unsigned long *id)

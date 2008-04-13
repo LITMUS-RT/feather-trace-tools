@@ -34,7 +34,7 @@ static void cat2stdout(int fd)
 {
 	static char buf[4096];
 	int rd;
-	while (rd = read(fd, buf, 4096))
+	while ((rd = read(fd, buf, 4096)))
 		fwrite(buf, 1, rd, stdout);	
 }
 
