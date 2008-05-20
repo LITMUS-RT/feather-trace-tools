@@ -12,8 +12,8 @@ static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
 
-//static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
-static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
+static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
+//static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
 
 static struct timestamp* next(struct timestamp** pos, size_t* count, int cpu)
 {
