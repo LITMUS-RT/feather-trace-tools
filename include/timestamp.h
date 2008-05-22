@@ -3,11 +3,18 @@
 
 #include <stdint.h>
 
+enum task_type_marker {
+	TSK_BE,
+	TSK_RT,
+	TSK_UNKNOWN
+};
+
 struct timestamp {
 	uint64_t		timestamp;
 	uint32_t		seq_no;
-	uint16_t		cpu;
-	uint16_t		event;
+	uint8_t			cpu;
+	uint8_t			event;
+	uint8_t			task_type;
 };
 
 typedef uint32_t cmd_t;

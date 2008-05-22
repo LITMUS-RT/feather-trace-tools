@@ -11,6 +11,7 @@ static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
+static unsigned int non_rt     = 0;
 
 static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
 //static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
@@ -49,6 +50,8 @@ static void show_csv(struct timestamp* ts, size_t count)
 	if (find_pair(start, &stop, count)) {
 		if (stop->timestamp - start->timestamp > threshold)
 			filtered++;
+		else if (start->task_type != TSK_RT && stop->task_type != TSK_RT)
+			non_rt++;
 		else {
 			printf("%llu, %llu, %llu\n",
 			       start->timestamp, stop->timestamp, 
@@ -149,10 +152,11 @@ int main(int argc, char** argv)
 		"Skipped   : %10d\n"
 		"Complete  : %10d\n"
 		"Incomplete: %10d\n"
-		"Filtered  : %10d\n", 
+		"Filtered  : %10d\n"
+		"Non RT    : %10d\n",
 		count,
 		skipped, complete,	    
-		incomplete, filtered);
+		incomplete, filtered, non_rt);
 
 	return 0;
 }
