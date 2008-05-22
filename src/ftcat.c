@@ -11,14 +11,14 @@
 
 static int fd;
 static int event_count = 1;
-static unsigned long  ids[MAX_EVENTS];
+static cmd_t  ids[MAX_EVENTS];
 
 static int disable_all(int fd)
 {
 	int ret, size;
 	ids[0] = DISABLE_CMD;
 	fprintf(stderr, "Disabling %d events.\n", event_count - 1);
-	size = event_count * sizeof(long);
+	size = event_count * sizeof(cmd_t);
 	ret  = write(fd, ids, size);
 	//fprintf(stderr, "write = %d, meant to write %d (%m)\n", ret, size);
 	return size == ret;
@@ -26,8 +26,8 @@ static int disable_all(int fd)
 
 static int enable_events(int fd, char* str) 
 {
-	unsigned long   *id;
-	unsigned long   cmd[3];
+	cmd_t   *id;
+	cmd_t   cmd[3];
 
 	id = ids + event_count;
 	if (!str2event(str, id))
@@ -38,7 +38,7 @@ static int enable_events(int fd, char* str)
 	cmd[0] = ENABLE_CMD;
 	cmd[1] = id[0];
 	cmd[2] = id[1];
-	return write(fd, cmd, 3 * sizeof(long)) == 3 * sizeof(long);
+	return write(fd, cmd, 3 * sizeof(cmd_t)) == 3 * sizeof(cmd_t);
 }
 
 

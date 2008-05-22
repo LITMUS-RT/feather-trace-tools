@@ -4,7 +4,7 @@
 
 struct event_name {
 	const char* 	name;
-	unsigned long 	id;
+	cmd_t	 	id;
 };
 
 #define EVENT(name) {#name, TS_ ## name ## _START}
@@ -37,7 +37,7 @@ static struct event_name event_table[] =
 	EVENT(SRPT)
 };
 
-int  str2event(const char* str, unsigned long *id)
+int  str2event(const char* str, cmd_t *id)
 {
 	int i; 
 
@@ -49,7 +49,7 @@ int  str2event(const char* str, unsigned long *id)
 	return 0;
 }
 
-const char* event2str(unsigned long id)
+const char* event2str(cmd_t id)
 {
 	int i; 
 

@@ -1,15 +1,19 @@
 #ifndef TIMESTAMP_H
 #define TIMESTAMP_H
 
+#include <stdint.h>
+
 struct timestamp {
-	unsigned long		event;
-	unsigned long long	timestamp;
-	unsigned int		seq_no;
-	int			cpu;
+	uint64_t		timestamp;
+	uint32_t		seq_no;
+	uint16_t		cpu;
+	uint16_t		event;
 };
 
-int  str2event(const char* str, unsigned long *id);
-const char* event2str(unsigned long id);
+typedef uint32_t cmd_t;
+
+int  str2event(const char* str, cmd_t *id);
+const char* event2str(cmd_t id);
 
 #define ENABLE_CMD  0L
 #define DISABLE_CMD 1L
