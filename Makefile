@@ -1,5 +1,12 @@
-CFLAGS=-Wall -g -Iinclude/ -m64
-CPPFLAGS=-Wall -g
+ARCH=$(shell uname -m | sed -e s/i.86/i386/)
+
+INC= -Iinclude
+
+ifeq ($(ARCH),sparc64)
+  CFLAGS= -Wall -g ${INC} -mcpu=v9 -m64
+else
+  CFLAGS= -Wall -g ${INC}
+endif
 
 vpath %.h include/
 vpath %.c src/
