@@ -7,25 +7,37 @@
 
 #include "timestamp.h"
 
-static int fd;
+#define MAX_EVENTS 128
 
-static void on_sigint(int sig)
+static int fd;
+static int event_count = 1;
+static unsigned long  ids[MAX_EVENTS];
+
+static int disable_all(int fd)
 {
-	close(fd);
-	exit(0);
+	int ret, size;
+	ids[0] = DISABLE_CMD;
+	fprintf(stderr, "Disabling %d events.\n", event_count - 1);
+	size = event_count * sizeof(long);
+	ret  = write(fd, ids, size);
+	//fprintf(stderr, "write = %d, meant to write %d (%m)\n", ret, size);
+	return size == ret;
 }
 
 static int enable_events(int fd, char* str) 
 {
-	unsigned long   id;
+	unsigned long   *id;
 	unsigned long   cmd[3];
 
-	if (!str2event(str, &id))
+	id = ids + event_count;
+	if (!str2event(str, id))
 		return 0;
 
+	event_count += 2;
+	id[1]  = id[0] + 1;
 	cmd[0] = ENABLE_CMD;
-	cmd[1] = id;
-	cmd[2] = id + 1;
+	cmd[1] = id[0];
+	cmd[2] = id[1];
 	return write(fd, cmd, 3 * sizeof(long)) == 3 * sizeof(long);
 }
 
@@ -34,8 +46,8 @@ static void cat2stdout(int fd)
 {
 	static char buf[4096];
 	int rd;
-	while ((rd = read(fd, buf, 4096)))
-		fwrite(buf, 1, rd, stdout);	
+	while ((rd = read(fd, buf, 4096)) > 0)
+		fwrite(buf, 1, rd, stdout);
 }
 
 
@@ -47,6 +59,20 @@ static void usage(void)
 		//		" sched, tick, plug_tick, plug_sche"
 		"\n");
 	exit(1);
+}
+
+static void on_sigint(int sig)
+{
+	close(fd);
+	exit(0);
+}
+
+static void on_sigusr1(int sig)
+{
+	int ok;
+	ok = disable_all(fd);
+	if (!ok)
+		fprintf(stderr, "disable_all: %m\n");
 }
 
 int main(int argc, char** argv) 
@@ -61,10 +87,11 @@ int main(int argc, char** argv)
 	}
 	argc -= 2;
 	argv += 2;
-	signal(SIGINT,on_sigint);
+	signal(SIGINT, on_sigint);
+	signal(SIGUSR1, on_sigusr1);
 	while (argc--) {
 		if (!enable_events(fd, *argv)) {
-			fprintf(stderr, "Enabling %s failed.\n", *argv);
+			fprintf(stderr, "Enabling %s failed: %m\n", *argv);
 			return 2;
 		}
 		argv++;

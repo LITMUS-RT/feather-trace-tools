@@ -11,14 +11,21 @@ struct timestamp {
 int  str2event(const char* str, unsigned long *id);
 const char* event2str(unsigned long id);
 
-#define ENABLE_CMD 0L
+#define ENABLE_CMD  0L
+#define DISABLE_CMD 1L
 
 #define TIMESTAMP(id) id
 
 #define TS_SCHED_START 			TIMESTAMP(100)
 #define TS_SCHED_END			TIMESTAMP(101)
-#define TS_CXS_START			TIMESTAMP(102)
-#define TS_CXS_END			TIMESTAMP(103)
+#define TS_SCHED2_START 		TIMESTAMP(102)
+#define TS_SCHED2_END			TIMESTAMP(103)
+
+#define TS_CXS_START			TIMESTAMP(104)
+#define TS_CXS_END			TIMESTAMP(105)
+
+#define TS_RELEASE_START		TIMESTAMP(106)
+#define TS_RELEASE_END			TIMESTAMP(107)
 
 #define TS_TICK_START  			TIMESTAMP(110)
 #define TS_TICK_END    			TIMESTAMP(111)

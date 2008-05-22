@@ -12,7 +12,9 @@ struct event_name {
 static struct event_name event_table[] = 
 {
 	EVENT(SCHED),
+	EVENT(SCHED2),
 	EVENT(TICK),
+	EVENT(RELEASE),
 	EVENT(PLUGIN_SCHED),
 	EVENT(PLUGIN_TICK),
 	EVENT(CXS),
