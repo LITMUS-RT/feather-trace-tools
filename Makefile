@@ -13,7 +13,7 @@ vpath %.c src/
 
 .PHONY: clean
 
-TOOLS = ftcat ft2csv
+TOOLS = ftcat ft2csv ftdump
 
 all: ${TOOLS}
 
@@ -24,6 +24,10 @@ ftcat: ${FTCAT_OBJ}
 FT2CSV_OBJ = ft2csv.o mapping.o timestamp.o
 ft2csv: ${FT2CSV_OBJ}
 	${CC} ${CFLAGS} -o ft2csv ${FT2CSV_OBJ}
+
+FT2CSV_OBJ = ftdump.o mapping.o timestamp.o
+ftdump: ${FT2CSV_OBJ}
+	${CC} ${CFLAGS} -o ftdump ${FT2CSV_OBJ}
 
 clean: 
 	rm -rf *.o ${TOOLS}
