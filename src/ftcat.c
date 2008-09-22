@@ -54,9 +54,7 @@ static void cat2stdout(int fd)
 static void usage(void)
 {
 	fprintf(stderr, 
-		"Usage: ftcat <ft device> TS1 TS2 ....\n\n"
-		//		"where TS1, TS2, ... is one of "
-		//		" sched, tick, plug_tick, plug_sche"
+		"Usage: ftcat <ft device> TS1 TS2 ...."
 		"\n");
 	exit(1);
 }

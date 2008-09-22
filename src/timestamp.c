@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "timestamp.h"
@@ -46,7 +47,8 @@ int  str2event(const char* str, cmd_t *id)
 			*id = event_table[i].id;
 			return 1;
 		}
-	return 0;
+	/* try to parse it as a number */
+	return sscanf(str, "%u", id);
 }
 
 const char* event2str(cmd_t id)
