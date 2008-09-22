@@ -7,55 +7,70 @@
 
 #include "timestamp.h"
 
+int no_interleaved = 1;
+
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
 static unsigned int non_rt     = 0;
+static unsigned int interleaved = 0;
 
 static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
 //static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
 
-static struct timestamp* next(struct timestamp** pos, size_t* count, int cpu)
+static struct timestamp* next(struct timestamp* start, struct timestamp* end, 
+			      int cpu)
 {
-	while (*count--)
-		if ((++(*pos))->cpu == cpu)
-			return *pos;       
-	return NULL;
+	struct timestamp* pos;
+	for (pos = start; pos != end && pos->cpu != cpu; pos++);
+	return pos != end ? pos : NULL;
 }
 
-static struct timestamp* next_id(struct timestamp** pos, size_t* count, 
-				 int cpu, unsigned long id) 
+static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
+				 int cpu, unsigned long id, unsigned long stop_id)
 {
-	struct timestamp* ret;
-	while ((ret = next(pos, count, cpu)) && (*pos)->event != id);
-	return ret;
+	struct timestamp* pos = start;
+	int restarts = 0;
+
+	while ((pos = next(pos, end, cpu))) {
+		if (pos->event == id)
+			break;
+		else if (pos->event == stop_id)
+			return NULL;
+		pos++;
+		restarts++;
+		if (no_interleaved)
+			return NULL;
+	}
+	if (pos)
+		interleaved += restarts;
+	return pos;
 }
 
-static int find_pair(struct timestamp* start, 
-		     struct timestamp** end,
-		     size_t count)
+static struct timestamp* find_second_ts(struct timestamp* start, struct timestamp* end)
 {
-	struct timestamp *pos = start;
 	/* convention: the end->event is start->event + 1 */
-	*end = next_id(&pos, &count, start->cpu, start->event + 1);
-	return *end != NULL;
+	return next_id(start + 1, end, start->cpu, start->event + 1, start->event);
 }
 
-static void show_csv(struct timestamp* ts, size_t count)
+static void show_csv(struct timestamp* first, struct timestamp *end)
 {
-	struct timestamp* start = ts;
-	struct timestamp* stop;
+	struct timestamp *second;
 
-	if (find_pair(start, &stop, count)) {
-		if (stop->timestamp - start->timestamp > threshold)
+	second = find_second_ts(first, end);
+	if (second) {
+		if (second->timestamp - first->timestamp > threshold)
 			filtered++;
-		else if (start->task_type != TSK_RT && stop->task_type != TSK_RT)
+		else if (first->task_type != TSK_RT && 
+			 second->task_type != TSK_RT)
 			non_rt++;
 		else {
 			printf("%llu, %llu, %llu\n",
-			       start->timestamp, stop->timestamp, 
-			       stop->timestamp - start->timestamp);
+			       (unsigned long long) first->timestamp, 
+			       (unsigned long long) second->timestamp, 
+			       (unsigned long long) 
+			       (second->timestamp - first->timestamp));
 			complete++;
 		}
 	} else
@@ -63,61 +78,18 @@ static void show_csv(struct timestamp* ts, size_t count)
 	
 }
 
-/*static void show_all_per_cpu(struct timestamp* ts, size_t count)
+static void show_id(struct timestamp* start, struct timestamp* end,
+		    unsigned long id)
 {
-	struct timestamp* _ts = ts;
-	size_t _count = count;
-	int cpu;
-	
-	for (cpu = 0; cpu < 4; cpu++) {
-		count = _count;
-		ts    = _ts;
-		while (count--) {
-			if (ts->cpu == cpu)
-				show(ts, count);	
-			ts++;
-		}
-	}
-}*/
-
-
-static void skip_n(struct timestamp** ts, size_t *count, unsigned int n)
-{
-	while (n-- && (*count)--)		
-	{
-		(*ts)++;
+	while (start !=end && start->event != id + 1) {
 		skipped++;
+		start++;
 	}
+
+	for (; start != end; start++)
+		if (start->event == id)
+			show_csv(start, end);
 }
-
-static void show_id(struct timestamp* ts, size_t count,  unsigned long id)
-{
-	while (ts->event != id + 1 && count) {
-		skipped++;
-		ts++;
-		count--;
-	}
-	//printf("count == %d\n", count);
-	if (!count)
-		return;
-	skip_n(&ts, &count, 100);
-	if (!count)
-		return;
-	//printf("count == %d\n", count);
-	while (count--)
-		if (ts->event == id)
-			show_csv(ts++, count);
-		else
-			ts++;
-}
-
-
-static void dump(struct timestamp* ts, size_t count,  unsigned long id)
-{
-	while (count--)
-		printf("%lu\n", (ts++)->event);
-}
-
 
 static void die(char* msg)
 {
@@ -131,8 +103,8 @@ int main(int argc, char** argv)
 {
 	void* mapped;
 	size_t size, count;
-	struct timestamp* ts;	
-	unsigned long id;
+	struct timestamp *ts, *end;	
+	cmd_t id;
 
 	if (argc != 3)
 		die("Usage: ft2csv  <event_name>  <logfile>");
@@ -143,20 +115,23 @@ int main(int argc, char** argv)
 		die("Unknown event!");
 
 	ts    = (struct timestamp*) mapped;
-	count = size / sizeof(struct timestamp);		
+	count = size / sizeof(struct timestamp);
+	end   = ts + count;
 
-	show_id(ts, count, id);
+	show_id(ts, end, id);
 
 	fprintf(stderr,
-		"Total     : %10d\n"
-		"Skipped   : %10d\n"
-		"Complete  : %10d\n"
-		"Incomplete: %10d\n"
-		"Filtered  : %10d\n"
-		"Non RT    : %10d\n",
-		count,
+		"Total       : %10d\n"
+		"Skipped     : %10d\n"
+		"Complete    : %10d\n"
+		"Incomplete  : %10d\n"
+		"Filtered    : %10d\n"
+		"Non RT      : %10d\n"
+		"Interleaved : %10d\n",
+		(int) count,
 		skipped, complete,	    
-		incomplete, filtered, non_rt);
+		incomplete, filtered, non_rt,
+		interleaved);
 
 	return 0;
 }
