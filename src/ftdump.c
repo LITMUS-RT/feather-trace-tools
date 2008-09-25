@@ -34,13 +34,13 @@ int main(int argc, char** argv)
 	struct timestamp* ts;
 
 	printf("struct timestamp:\n"
-	       "\t size              = %3lu\n"
+	       "\t size              = %3u\n"
 	       "\t offset(timestamp) = %3u\n"
 	       "\t offset(seq_no)    = %3u\n"
 	       "\t offset(cpu)       = %3u\n"
 	       "\t offset(event)     = %3u\n"
 	       "\t offset(task_type) = %3u\n",
-	       sizeof(struct timestamp),
+	       (unsigned int) sizeof(struct timestamp),
 	       offset(struct timestamp, timestamp),
 	       offset(struct timestamp, seq_no),
 	       offset(struct timestamp, cpu),
