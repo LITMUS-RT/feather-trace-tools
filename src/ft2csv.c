@@ -104,6 +104,7 @@ static void restore_byte_order(struct timestamp* start, struct timestamp* end)
 	while (pos !=end) {
 		pos->timestamp = ntohx(pos->timestamp);
 		pos->seq_no    = ntohl(pos->seq_no);
+		pos++;
 	}
 }
 
