@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 #include "mapping.h"
 
@@ -19,7 +21,7 @@ static unsigned int interleaved = 0;
 static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
 //static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
 
-static struct timestamp* next(struct timestamp* start, struct timestamp* end, 
+static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
 {
 	struct timestamp* pos;
@@ -62,21 +64,49 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 	if (second) {
 		if (second->timestamp - first->timestamp > threshold)
 			filtered++;
-		else if (first->task_type != TSK_RT && 
+		else if (first->task_type != TSK_RT &&
 			 second->task_type != TSK_RT)
 			non_rt++;
 		else {
 			printf("%llu, %llu, %llu\n",
-			       (unsigned long long) first->timestamp, 
-			       (unsigned long long) second->timestamp, 
-			       (unsigned long long) 
+			       (unsigned long long) first->timestamp,
+			       (unsigned long long) second->timestamp,
+			       (unsigned long long)
 			       (second->timestamp - first->timestamp));
 			complete++;
 		}
 	} else
 		incomplete++;
-	
+
 }
+
+static inline uint64_t bget(int x, uint64_t quad)
+
+{
+	return (((0xffll << 8 * x) & quad) >> 8 * x);
+}
+
+static inline uint64_t bput(uint64_t b, int pos)
+{
+	return (b << 8 * pos);
+}
+
+static inline uint64_t ntohx(uint64_t q)
+{
+	return (bput(bget(0, q), 7) | bput(bget(1, q), 6) | bput(bget(2, q), 5) |
+		bput(bget(3, q), 4) | bput(bget(4, q), 3) | bput(bget(5, q), 2) |
+		bput(bget(6, q), 1) | bput(bget(7, q), 0));
+}
+
+static void restore_byte_order(struct timestamp* start, struct timestamp* end)
+{
+	struct timestamp* pos = start;
+	while (pos !=end) {
+		pos->timestamp = ntohx(pos->timestamp);
+		pos->seq_no    = ntohl(pos->seq_no);
+	}
+}
+
 
 static void show_id(struct timestamp* start, struct timestamp* end,
 		    unsigned long id)
@@ -95,29 +125,52 @@ static void die(char* msg)
 {
 	if (errno)
 		perror("error: ");
-	fprintf(stderr, "%s\n", msg);	
+	fprintf(stderr, "%s\n", msg);
 	exit(1);
 }
 
-int main(int argc, char** argv) 
+#define OPTS "e"
+
+int main(int argc, char** argv)
 {
 	void* mapped;
 	size_t size, count;
-	struct timestamp *ts, *end;	
+	struct timestamp *ts, *end;
 	cmd_t id;
+	int swap_byte_order = 0;
+	int opt;
 
-	if (argc != 3)
-		die("Usage: ft2csv  <event_name>  <logfile>");
-	if (map_file(argv[2], &mapped, &size))
+	/*
+	printf("%llx -> %llx\n", 0xaabbccddeeff1122ll,
+	       ntohx(0xaabbccddeeff1122ll));
+	printf("%x -> %x\n", 0xaabbccdd,
+	       ntohl(0xaabbccdd));
+	*/
+	while ((opt = getopt(argc, argv, OPTS)) != -1) {
+		switch (opt) {
+		case 'e':
+			swap_byte_order = 1;
+			break;
+		default:
+			die("Unknown option.");
+			break;
+		}
+	}
+
+	if (argc - optind != 2)
+		die("Usage: ft2csv [-e]  <event_name>  <logfile>");
+	if (map_file(argv[optind + 1], &mapped, &size))
 		die("could not map file");
 
-	if (!str2event(argv[1], &id))
+	if (!str2event(argv[optind], &id))
 		die("Unknown event!");
 
 	ts    = (struct timestamp*) mapped;
 	count = size / sizeof(struct timestamp);
 	end   = ts + count;
 
+	if (swap_byte_order)
+		restore_byte_order(ts, end);
 	show_id(ts, end, id);
 
 	fprintf(stderr,
@@ -129,7 +182,7 @@ int main(int argc, char** argv)
 		"Non RT      : %10d\n"
 		"Interleaved : %10d\n",
 		(int) count,
-		skipped, complete,	    
+		skipped, complete,
 		incomplete, filtered, non_rt,
 		interleaved);
 
