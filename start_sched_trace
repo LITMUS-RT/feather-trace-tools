@@ -7,10 +7,12 @@ NUM_CPUS=`egrep -c 'processor|online'   /proc/cpuinfo`
 
 ST_IDS="501 502 503 504 505 506 507 508 509"
 
+TAG=$1
+
 for x in `seq 0 $(($NUM_CPUS - 1))`
 do
 	echo -n "CPU $x: "
-	ftcat /home/litmus/log$x $ST_IDS > st${x}.bin &
+	ftcat /home/litmus/log$x $ST_IDS > st${TAG}${x}.bin &
 	echo $! "[$?]"
 done
 
