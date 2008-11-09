@@ -12,6 +12,8 @@
 static int fd;
 static int event_count = 1;
 static cmd_t  ids[MAX_EVENTS];
+static unsigned long total_bytes = 0;
+
 
 static int disable_all(int fd)
 {
@@ -46,8 +48,10 @@ static void cat2stdout(int fd)
 {
 	static char buf[4096];
 	int rd;
-	while ((rd = read(fd, buf, 4096)) > 0)
+	while ((rd = read(fd, buf, 4096)) > 0) {
+		total_bytes += rd;
 		fwrite(buf, 1, rd, stdout);
+	}
 }
 
 
@@ -62,10 +66,11 @@ static void usage(void)
 static void on_sigint(int sig)
 {
 	close(fd);
+	fflush(stdout);
 	exit(0);
 }
 
-static void on_sigusr1(int sig)
+static void shutdown(int sig)
 {
 	int ok;
 	ok = disable_all(fd);
@@ -75,18 +80,21 @@ static void on_sigusr1(int sig)
 
 int main(int argc, char** argv) 
 {
+	const char* trace_file;
 	if (argc < 3) 
 		usage();
 	
-	fd = open(argv[1], O_RDWR);
+	trace_file = argv[1];
+	fd = open(trace_file, O_RDWR);
 	if (fd < 0) {
 		perror("could not open feathertrace");
 		return 1;
 	}
 	argc -= 2;
 	argv += 2;
-	signal(SIGINT, on_sigint);
-	signal(SIGUSR1, on_sigusr1);
+	signal(SIGINT, shutdown);
+	signal(SIGUSR1, shutdown);
+	signal(SIGTERM, shutdown);
 	while (argc--) {
 		if (!enable_events(fd, *argv)) {
 			fprintf(stderr, "Enabling %s failed: %m\n", *argv);
@@ -97,6 +105,8 @@ int main(int argc, char** argv)
 
 	cat2stdout(fd);
 	close(fd);
+	fflush(stdout);
+	fprintf(stderr, "%s: %lu bytes read.\n", trace_file, total_bytes);
 	return 0;
 }
 
