@@ -21,6 +21,8 @@
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "timestamp.h"
 
@@ -44,14 +46,16 @@ static int disable_all(int fd)
 	return size == ret;
 }
 
-static int enable_events(int fd, char* str) 
+static int enable_event(int fd, char* str)
 {
 	cmd_t   *id;
 	cmd_t   cmd[2];
 
 	id = ids + event_count;
-	if (!str2event(str, id))
+	if (!str2event(str, id)) {
+		errno = EINVAL;
 		return 0;
+	}
 
 	event_count += 1;
 	cmd[0] = ENABLE_CMD;
@@ -60,7 +64,7 @@ static int enable_events(int fd, char* str)
 }
 
 
-static void cat2stdout(int fd) 
+static void cat2stdout(int fd)
 {
 	static char buf[4096];
 	int rd;
@@ -73,7 +77,7 @@ static void cat2stdout(int fd)
 
 static void usage(void)
 {
-	fprintf(stderr, 
+	fprintf(stderr,
 		"Usage: ftcat <ft device> TS1 TS2 ...."
 		"\n");
 	exit(1);
@@ -94,12 +98,12 @@ static void shutdown(int sig)
 		fprintf(stderr, "disable_all: %m\n");
 }
 
-int main(int argc, char** argv) 
+int main(int argc, char** argv)
 {
 	const char* trace_file;
-	if (argc < 3) 
+	if (argc < 3)
 		usage();
-	
+
 	trace_file = argv[1];
 	fd = open(trace_file, O_RDWR);
 	if (fd < 0) {
@@ -112,7 +116,7 @@ int main(int argc, char** argv)
 	signal(SIGUSR1, shutdown);
 	signal(SIGTERM, shutdown);
 	while (argc--) {
-		if (!enable_events(fd, *argv)) {
+		if (!enable_event(fd, *argv)) {
 			fprintf(stderr, "Enabling %s failed: %m\n", *argv);
 			return 2;
 		}
