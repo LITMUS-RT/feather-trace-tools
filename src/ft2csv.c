@@ -9,7 +9,7 @@
 
 #include "timestamp.h"
 
-int no_interleaved = 1;
+static int no_interleaved = 0;
 
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
@@ -19,7 +19,6 @@ static unsigned int non_rt     = 0;
 static unsigned int interleaved = 0;
 
 static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
-//static unsigned long long threshold = 2700 * 50; /* 1 ms == 1 full tick */
 
 static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
@@ -122,15 +121,23 @@ static void show_id(struct timestamp* start, struct timestamp* end,
 			show_csv(start, end);
 }
 
+#define USAGE \
+	"Usage: ft2csv [-e]  [-i] <event_name>  <logfile> \n"	\
+	"   -e: endianess swap      -- restores byte order \n"	\
+	"   -i: ignore interleaved  -- ignore samples if start " \
+	"and end are non-consecutive\n"				\
+	""
+
 static void die(char* msg)
 {
 	if (errno)
 		perror("error: ");
 	fprintf(stderr, "%s\n", msg);
+	fprintf(stderr, "%s", USAGE);
 	exit(1);
 }
 
-#define OPTS "e"
+#define OPTS "ei"
 
 int main(int argc, char** argv)
 {
@@ -152,6 +159,9 @@ int main(int argc, char** argv)
 		case 'e':
 			swap_byte_order = 1;
 			break;
+		case 'i':
+			no_interleaved = 1;
+			break;
 		default:
 			die("Unknown option.");
 			break;
@@ -159,7 +169,7 @@ int main(int argc, char** argv)
 	}
 
 	if (argc - optind != 2)
-		die("Usage: ft2csv [-e]  <event_name>  <logfile>");
+		die("arguments missing");
 	if (map_file(argv[optind + 1], &mapped, &size))
 		die("could not map file");
 
