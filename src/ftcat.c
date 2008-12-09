@@ -22,25 +22,24 @@ static int disable_all(int fd)
 	fprintf(stderr, "Disabling %d events.\n", event_count - 1);
 	size = event_count * sizeof(cmd_t);
 	ret  = write(fd, ids, size);
-	//fprintf(stderr, "write = %d, meant to write %d (%m)\n", ret, size);
+	if (ret != size)
+		fprintf(stderr, "write = %d, meant to write %d (%m)\n", ret, size);
 	return size == ret;
 }
 
 static int enable_events(int fd, char* str) 
 {
 	cmd_t   *id;
-	cmd_t   cmd[3];
+	cmd_t   cmd[2];
 
 	id = ids + event_count;
 	if (!str2event(str, id))
 		return 0;
 
-	event_count += 2;
-	id[1]  = id[0] + 1;
+	event_count += 1;
 	cmd[0] = ENABLE_CMD;
 	cmd[1] = id[0];
-	cmd[2] = id[1];
-	return write(fd, cmd, 3 * sizeof(cmd_t)) == 3 * sizeof(cmd_t);
+	return write(fd, cmd, sizeof(cmd)) == sizeof(cmd_t)  * 2;
 }
 
 
