@@ -27,7 +27,8 @@
 
 #include "timestamp.h"
 
-static int no_interleaved = 0;
+static int want_interleaved    = 1;
+static int want_best_effort    = 0;
 
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
@@ -59,7 +60,7 @@ static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
 			return NULL;
 		pos++;
 		restarts++;
-		if (no_interleaved)
+		if (!want_interleaved)
 			return NULL;
 	}
 	if (pos)
@@ -82,7 +83,7 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 		if (second->timestamp - first->timestamp > threshold)
 			filtered++;
 		else if (first->task_type != TSK_RT &&
-			 second->task_type != TSK_RT)
+			 second->task_type != TSK_RT && !want_best_effort)
 			non_rt++;
 		else {
 			printf("%llu, %llu, %llu\n",
@@ -155,7 +156,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ei"
+#define OPTS "eib"
 
 int main(int argc, char** argv)
 {
@@ -178,7 +179,10 @@ int main(int argc, char** argv)
 			swap_byte_order = 1;
 			break;
 		case 'i':
-			no_interleaved = 1;
+			want_interleaved = 0;
+			break;
+		case 'b':
+			want_best_effort = 1;
 			break;
 		default:
 			die("Unknown option.");
