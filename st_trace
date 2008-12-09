@@ -1,21 +1,27 @@
 #!/bin/bash
 
-FTCAT=ftcat
-DEVICE=/home/litmus/log
+[ -z "$FTCAT" ] && FTCAT=ftcat
+[ -z "$FTDEV" ] && FTDEV=/home/litmus/log
 
 # Setup up sched_trace tracing.
 
-# works for sparc64/x86 if no CPU is offline
+# works for sparc64 and Intel x86 if all CPUs are online
 NUM_CPUS=`egrep -c 'processor|online'   /proc/cpuinfo`
 
 ST_IDS="501 502 503 504 505 506 507 508 509"
 
 TAG=$1
-
+PIDS=""
 for x in `seq 0 $(($NUM_CPUS - 1))`
 do
-	echo -n "CPU $x: "
-	$FTCAT "$DEVICE$x" $ST_IDS > st${TAG}${x}.bin &
-	echo $! "[$?]"
+    TARGET="st-${TAG}-${x}.bin"
+    echo -n "CPU $x: "
+    $FTCAT "$FTDEV$x" $ST_IDS > "$TARGET"  &
+    PIDS="$PIDS $!"
+    echo $! "> $TARGET [$?]"
 done
 
+echo "Press Enter to end tracing..."
+read
+kill $PIDS
+wait $PIDS
