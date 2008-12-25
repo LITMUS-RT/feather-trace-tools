@@ -1,0 +1,7 @@
+.sconsign.dblite
+*.o
+~*
+ftcat
+ft2csv
+ftdump
+
