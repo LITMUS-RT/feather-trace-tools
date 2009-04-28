@@ -141,9 +141,10 @@ static void show_id(struct timestamp* start, struct timestamp* end,
 }
 
 #define USAGE \
-	"Usage: ft2csv [-e]  [-i] <event_name>  <logfile> \n"	\
+	"Usage: ft2csv [-e] [-i] [-b] <event_name>  <logfile> \n"	\
 	"   -e: endianess swap      -- restores byte order \n"	\
 	"   -i: ignore interleaved  -- ignore samples if start " \
+	"   -b: best effort         -- don't skip non-rt time stamps " \
 	"and end are non-consecutive\n"				\
 	""
 
