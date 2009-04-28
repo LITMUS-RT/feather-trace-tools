@@ -144,8 +144,8 @@ static void show_id(struct timestamp* start, struct timestamp* end,
 	"Usage: ft2csv [-e] [-i] [-b] <event_name>  <logfile> \n"	\
 	"   -e: endianess swap      -- restores byte order \n"	\
 	"   -i: ignore interleaved  -- ignore samples if start " \
-	"   -b: best effort         -- don't skip non-rt time stamps " \
 	"and end are non-consecutive\n"				\
+	"   -b: best effort         -- don't skip non-rt time stamps \n" \
 	""
 
 static void die(char* msg)
