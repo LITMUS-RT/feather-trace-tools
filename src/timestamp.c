@@ -21,6 +21,7 @@ static struct event_name event_table[] =
 	EVENT(PLUGIN_SCHED),
 	EVENT(PLUGIN_TICK),
 	EVENT(CXS),
+	EVENT(SEND_RESCHED),
 };
 
 int  str2event(const char* str, cmd_t *id)

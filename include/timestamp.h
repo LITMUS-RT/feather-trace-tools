@@ -47,4 +47,7 @@ const char* event2str(cmd_t id);
 #define TS_PLUGIN_TICK_START		TIMESTAMP(130)
 #define TS_PLUGIN_TICK_END		TIMESTAMP(131)
 
+#define TS_SEND_RESCHED_START		TIMESTAMP(190)
+#define TS_SEND_RESCHED_END		TIMESTAMP(191)
+
 #endif
