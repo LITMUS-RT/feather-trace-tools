@@ -48,7 +48,8 @@ static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 }
 
 static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
-				 int cpu, unsigned long id, unsigned long stop_id)
+				 int cpu, unsigned long id,
+				 unsigned long stop_id)
 {
 	struct timestamp* pos = start;
 	int restarts = 0;
@@ -68,10 +69,12 @@ static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
 	return pos;
 }
 
-static struct timestamp* find_second_ts(struct timestamp* start, struct timestamp* end)
+static struct timestamp* find_second_ts(struct timestamp* start,
+					struct timestamp* end)
 {
 	/* convention: the end->event is start->event + 1 */
-	return next_id(start + 1, end, start->cpu, start->event + 1, start->event);
+	return next_id(start + 1, end, start->cpu, start->event + 1,
+		       start->event);
 }
 
 static void show_csv(struct timestamp* first, struct timestamp *end)
@@ -111,8 +114,9 @@ static inline uint64_t bput(uint64_t b, int pos)
 
 static inline uint64_t ntohx(uint64_t q)
 {
-	return (bput(bget(0, q), 7) | bput(bget(1, q), 6) | bput(bget(2, q), 5) |
-		bput(bget(3, q), 4) | bput(bget(4, q), 3) | bput(bget(5, q), 2) |
+	return (bput(bget(0, q), 7) | bput(bget(1, q), 6) |
+		bput(bget(2, q), 5) | bput(bget(3, q), 4) |
+		bput(bget(4, q), 3) | bput(bget(5, q), 2) |
 		bput(bget(6, q), 1) | bput(bget(7, q), 0));
 }
 
@@ -125,7 +129,6 @@ static void restore_byte_order(struct timestamp* start, struct timestamp* end)
 		pos++;
 	}
 }
-
 
 static void show_id(struct timestamp* start, struct timestamp* end,
 		    unsigned long id)
@@ -167,13 +170,8 @@ int main(int argc, char** argv)
 	cmd_t id;
 	int swap_byte_order = 0;
 	int opt;
+	char event_name[80];
 
-	/*
-	printf("%llx -> %llx\n", 0xaabbccddeeff1122ll,
-	       ntohx(0xaabbccddeeff1122ll));
-	printf("%x -> %x\n", 0xaabbccdd,
-	       ntohl(0xaabbccdd));
-	*/
 	while ((opt = getopt(argc, argv, OPTS)) != -1) {
 		switch (opt) {
 		case 'e':
@@ -196,8 +194,13 @@ int main(int argc, char** argv)
 	if (map_file(argv[optind + 1], &mapped, &size))
 		die("could not map file");
 
-	if (!str2event(argv[optind], &id))
-		die("Unknown event!");
+	if (!str2event(argv[optind], &id)) {
+		/* see if it is a short name */
+		snprintf(event_name, sizeof(event_name), "%s_START",
+			  argv[optind]);
+		if (!str2event(event_name, &id))
+			die("Unknown event!");
+	}
 
 	ts    = (struct timestamp*) mapped;
 	count = size / sizeof(struct timestamp);
