@@ -44,7 +44,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define offset(type, member)  ((unsigned int) &((type *) 0)->member)
+#define offset(type, member)  ((unsigned long) &((type *) 0)->member)
 
 int main(int argc, char** argv)
 {
@@ -53,13 +53,13 @@ int main(int argc, char** argv)
 	struct timestamp* ts;
 
 	printf("struct timestamp:\n"
-	       "\t size              = %3u\n"
-	       "\t offset(timestamp) = %3u\n"
-	       "\t offset(seq_no)    = %3u\n"
-	       "\t offset(cpu)       = %3u\n"
-	       "\t offset(event)     = %3u\n"
-	       "\t offset(task_type) = %3u\n",
-	       (unsigned int) sizeof(struct timestamp),
+	       "\t size              = %3lu\n"
+	       "\t offset(timestamp) = %3lu\n"
+	       "\t offset(seq_no)    = %3lu\n"
+	       "\t offset(cpu)       = %3lu\n"
+	       "\t offset(event)     = %3lu\n"
+	       "\t offset(task_type) = %3lu\n",
+	       (unsigned long) sizeof(struct timestamp),
 	       offset(struct timestamp, timestamp),
 	       offset(struct timestamp, seq_no),
 	       offset(struct timestamp, cpu),
