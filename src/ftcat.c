@@ -83,13 +83,6 @@ static void usage(void)
 	exit(1);
 }
 
-static void on_sigint(int sig)
-{
-	close(fd);
-	fflush(stdout);
-	exit(0);
-}
-
 static void shutdown(int sig)
 {
 	int ok;
