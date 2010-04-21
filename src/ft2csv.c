@@ -37,7 +37,9 @@ static unsigned int skipped    = 0;
 static unsigned int non_rt     = 0;
 static unsigned int interleaved = 0;
 
-static unsigned long long threshold = 2700 * 1000; /* 1 ms == 1 full tick */
+#define CYCLES_PER_US 2128
+
+static unsigned long long threshold = CYCLES_PER_US * 1000; /* 1 ms == 1 full tick */
 
 static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
