@@ -1,5 +1,26 @@
 #!/bin/bash
 
+if [ "$1" == "-s" ]
+then
+  AUTO=1
+  shift
+fi
+
+PIDS=""
+
+# signal that we're done gathering data and clean up
+on_finish()
+{
+    echo "Ending Trace..."
+    kill $PIDS
+    wait $PIDS
+
+    exit 0
+}
+
+# register shutdown signal handler
+trap 'on_finish' SIGUSR1
+
 [ -z "$FTCAT" ] && FTCAT=ftcat
 [ -z "$FTDEV" ] && FTDEV=/home/litmus/log
 
@@ -21,7 +42,13 @@ do
     echo $! "> $TARGET [$?]"
 done
 
-echo "Press Enter to end tracing..."
-read
-kill $PIDS
-wait $PIDS
+if [[ $AUTO != 1 ]]
+then
+    echo "Press Enter to end tracing..."
+    read
+    on_finish
+else
+    # wait for SIGUSR1 to terminate
+    echo "Waiting for SIGUSR1 to end tracing..."
+    while [ 1 ]; do sleep 10; done
+fi
