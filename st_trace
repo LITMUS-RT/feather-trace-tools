@@ -22,7 +22,7 @@ on_finish()
 trap 'on_finish' SIGUSR1
 
 [ -z "$FTCAT" ] && FTCAT=ftcat
-[ -z "$FTDEV" ] && FTDEV=/home/litmus/log
+[ -z "$FTDEV" ] && FTDEV=/dev/litmus/sched_trace
 
 # Setup up sched_trace tracing.
 
