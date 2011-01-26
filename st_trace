@@ -29,7 +29,7 @@ trap 'on_finish' SIGUSR1
 # works for sparc64 and Intel x86 if all CPUs are online
 NUM_CPUS=`egrep -c '^processor|online'   /proc/cpuinfo`
 
-ST_IDS="501 502 503 504 505 506 507 508 509"
+ST_IDS="501 502 503 504 505 506 507 508 509 510"
 
 TAG=$1
 PIDS=""
