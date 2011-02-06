@@ -50,4 +50,6 @@ const char* event2str(cmd_t id);
 #define TS_SEND_RESCHED_START		TIMESTAMP(190)
 #define TS_SEND_RESCHED_END		TIMESTAMP(191)
 
+#define TS_RELEASE_LATENCY		TIMESTAMP(2000)
+
 #endif
