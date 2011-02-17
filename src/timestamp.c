@@ -29,11 +29,12 @@ int  str2event(const char* str, cmd_t *id)
 {
 	int i;
 
-	for (i = 0; i < sizeof(event_table) / sizeof(event_table[0]); i++)
+	for (i = 0; i < sizeof(event_table) / sizeof(event_table[0]); i++) {
 		if (!strcmp(str, event_table[i].name)) {
 			*id = event_table[i].id;
 			return 1;
 		}
+	}
 	/* try to parse it as a number */
 	return sscanf(str, "%u", id);
 }
@@ -47,4 +48,14 @@ const char* event2str(cmd_t id)
 			return event_table[i].name;
 
 	return NULL;
+}
+
+const char* task_type2str(int task_type)
+{
+	if (task_type == TSK_RT)
+		return "RT";
+	else if (task_type == TSK_BE)
+		return "BE";
+	else
+		return "UNKNOWN";
 }

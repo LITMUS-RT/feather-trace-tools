@@ -39,7 +39,7 @@ static unsigned int interleaved = 0;
 
 #define CYCLES_PER_US 2128
 
-static unsigned long long threshold = CYCLES_PER_US * 1000; /* 1 ms == 1 full tick */
+static unsigned long long threshold = CYCLES_PER_US * 10000; /* 10 ms == 10 full ticks */
 
 static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
@@ -100,7 +100,16 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 		}
 	} else
 		incomplete++;
+}
 
+static void show_single_csv(struct timestamp* ts)
+{
+	if (ts->task_type == TSK_RT) {
+		printf("0, 0, %llu\n",
+		       (unsigned long long) (ts->timestamp));
+		complete++;
+	} else
+		non_rt++;
 }
 
 static inline uint64_t bget(int x, uint64_t quad)
@@ -143,6 +152,14 @@ static void show_id(struct timestamp* start, struct timestamp* end,
 	for (; start != end; start++)
 		if (start->event == id)
 			show_csv(start, end);
+}
+
+static void show_single_records(struct timestamp* start, struct timestamp* end,
+				unsigned long id)
+{
+	for (; start != end; start++)
+		if (start->event == id)
+			show_single_csv(start);
 }
 
 #define USAGE \
@@ -210,7 +227,11 @@ int main(int argc, char** argv)
 
 	if (swap_byte_order)
 		restore_byte_order(ts, end);
-	show_id(ts, end, id);
+
+	if (id >= SINGLE_RECORDS_RANGE)
+		show_single_records(ts, end, id);
+	else
+		show_id(ts, end, id);
 
 	fprintf(stderr,
 		"Total       : %10d\n"

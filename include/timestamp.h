@@ -21,6 +21,7 @@ typedef uint32_t cmd_t;
 
 int  str2event(const char* str, cmd_t *id);
 const char* event2str(cmd_t id);
+const char* task_type2str(int task_type);
 
 #define ENABLE_CMD  0L
 #define DISABLE_CMD 1L
@@ -50,6 +51,8 @@ const char* event2str(cmd_t id);
 #define TS_SEND_RESCHED_START		TIMESTAMP(190)
 #define TS_SEND_RESCHED_END		TIMESTAMP(191)
 
-#define TS_RELEASE_LATENCY		TIMESTAMP(2000)
+#define SINGLE_RECORDS_RANGE		200
+
+#define TS_RELEASE_LATENCY		TIMESTAMP(208)
 
 #endif
