@@ -45,8 +45,20 @@ static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
 {
 	struct timestamp* pos;
-	for (pos = start; pos != end && pos->cpu != cpu; pos++);
-	return pos != end ? pos : NULL;
+	unsigned int last_seqno = 0;
+
+	for (pos = start; pos != end;  pos++) {
+		/* check for for holes in the sequence number */
+		if (last_seqno && last_seqno + 1 != pos->seq_no) {
+			/* stumbled across a hole */
+			return NULL;
+		}
+		last_seqno = pos->seq_no;
+
+		if (pos->cpu == cpu)
+			return pos;
+	}
+	return NULL;
 }
 
 static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
@@ -112,35 +124,6 @@ static void show_single_csv(struct timestamp* ts)
 		non_rt++;
 }
 
-static inline uint64_t bget(int x, uint64_t quad)
-
-{
-	return (((0xffll << 8 * x) & quad) >> 8 * x);
-}
-
-static inline uint64_t bput(uint64_t b, int pos)
-{
-	return (b << 8 * pos);
-}
-
-static inline uint64_t ntohx(uint64_t q)
-{
-	return (bput(bget(0, q), 7) | bput(bget(1, q), 6) |
-		bput(bget(2, q), 5) | bput(bget(3, q), 4) |
-		bput(bget(4, q), 3) | bput(bget(5, q), 2) |
-		bput(bget(6, q), 1) | bput(bget(7, q), 0));
-}
-
-static void restore_byte_order(struct timestamp* start, struct timestamp* end)
-{
-	struct timestamp* pos = start;
-	while (pos !=end) {
-		pos->timestamp = ntohx(pos->timestamp);
-		pos->seq_no    = ntohl(pos->seq_no);
-		pos++;
-	}
-}
-
 static void show_id(struct timestamp* start, struct timestamp* end,
 		    unsigned long id)
 {
@@ -164,7 +147,6 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 
 #define USAGE \
 	"Usage: ft2csv [-e] [-i] [-b] <event_name>  <logfile> \n"	\
-	"   -e: endianess swap      -- restores byte order \n"	\
 	"   -i: ignore interleaved  -- ignore samples if start " \
 	"and end are non-consecutive\n"				\
 	"   -b: best effort         -- don't skip non-rt time stamps \n" \
@@ -179,7 +161,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "eib"
+#define OPTS "ib"
 
 int main(int argc, char** argv)
 {
@@ -187,15 +169,11 @@ int main(int argc, char** argv)
 	size_t size, count;
 	struct timestamp *ts, *end;
 	cmd_t id;
-	int swap_byte_order = 0;
 	int opt;
 	char event_name[80];
 
 	while ((opt = getopt(argc, argv, OPTS)) != -1) {
 		switch (opt) {
-		case 'e':
-			swap_byte_order = 1;
-			break;
 		case 'i':
 			want_interleaved = 0;
 			break;
@@ -224,9 +202,6 @@ int main(int argc, char** argv)
 	ts    = (struct timestamp*) mapped;
 	count = size / sizeof(struct timestamp);
 	end   = ts + count;
-
-	if (swap_byte_order)
-		restore_byte_order(ts, end);
 
 	if (id >= SINGLE_RECORDS_RANGE)
 		show_single_records(ts, end, id);
