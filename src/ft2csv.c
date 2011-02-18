@@ -91,6 +91,25 @@ static struct timestamp* find_second_ts(struct timestamp* start,
 		       start->event);
 }
 
+typedef void (*pair_fmt_t)(struct timestamp* first, struct timestamp* second);
+
+static void print_pair_csv(struct timestamp* first, struct timestamp* second)
+{
+	printf("%llu, %llu, %llu\n",
+	       (unsigned long long) first->timestamp,
+	       (unsigned long long) second->timestamp,
+	       (unsigned long long)
+	       (second->timestamp - first->timestamp));
+}
+
+static void print_pair_bin(struct timestamp* first, struct timestamp* second)
+{
+	float delta = second->timestamp - first->timestamp;
+	fwrite(&delta, sizeof(delta), 1, stdout);
+}
+
+pair_fmt_t format_pair = print_pair_csv;
+
 static void show_csv(struct timestamp* first, struct timestamp *end)
 {
 	struct timestamp *second;
@@ -103,22 +122,33 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 			 second->task_type != TSK_RT && !want_best_effort)
 			non_rt++;
 		else {
-			printf("%llu, %llu, %llu\n",
-			       (unsigned long long) first->timestamp,
-			       (unsigned long long) second->timestamp,
-			       (unsigned long long)
-			       (second->timestamp - first->timestamp));
+			format_pair(first, second);
 			complete++;
 		}
 	} else
 		incomplete++;
 }
 
-static void show_single_csv(struct timestamp* ts)
+typedef void (*single_fmt_t)(struct timestamp* ts);
+
+static void print_single_csv(struct timestamp* ts)
+{
+	printf("0, 0, %llu\n",
+	       (unsigned long long) (ts->timestamp));
+}
+
+static void print_single_bin(struct timestamp* ts)
+{
+	float delta = ts->timestamp;
+	fwrite(&delta, sizeof(delta), 1, stdout);
+}
+
+single_fmt_t single_fmt = print_single_csv;
+
+static void show_single(struct timestamp* ts)
 {
 	if (ts->task_type == TSK_RT) {
-		printf("0, 0, %llu\n",
-		       (unsigned long long) (ts->timestamp));
+		single_fmt(ts);
 		complete++;
 	} else
 		non_rt++;
@@ -142,14 +172,15 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 {
 	for (; start != end; start++)
 		if (start->event == id)
-			show_single_csv(start);
+			show_single(start);
 }
 
-#define USAGE \
-	"Usage: ft2csv [-e] [-i] [-b] <event_name>  <logfile> \n"	\
-	"   -i: ignore interleaved  -- ignore samples if start " \
-	"and end are non-consecutive\n"				\
+#define USAGE								\
+	"Usage: ft2csv [-r] [-i] [-b] <event_name>  <logfile> \n"	\
+	"   -i: ignore interleaved  -- ignore samples if start "	\
+	"and end are non-consecutive\n"					\
 	"   -b: best effort         -- don't skip non-rt time stamps \n" \
+	"   -r: raw binary format   -- don't produce .csv output \n"	\
 	""
 
 static void die(char* msg)
@@ -161,7 +192,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ib"
+#define OPTS "ibr"
 
 int main(int argc, char** argv)
 {
@@ -179,6 +210,10 @@ int main(int argc, char** argv)
 			break;
 		case 'b':
 			want_best_effort = 1;
+			break;
+		case 'r':
+			single_fmt  = print_single_bin;
+			format_pair = print_pair_bin;
 			break;
 		default:
 			die("Unknown option.");
