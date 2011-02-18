@@ -29,10 +29,14 @@
 static void dump(struct timestamp* ts, size_t count)
 {
 	struct timestamp *x;
+	unsigned int last_seq = 0;
 	const char* name;
 	while (count--) {
 		x = ts++;
 		name = event2str(x->event);
+		if (last_seq && last_seq + 1 != x->seq_no)
+			printf("==== non-consecutive sequence number ====\n");
+		last_seq = x->seq_no;
 		if (name)
 			printf("%-15s %-8s seq:%u cpu:%d timestamp:%llu\n",
 			       name, task_type2str(x->task_type), x->seq_no, x->cpu, x->timestamp);
