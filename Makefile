@@ -20,7 +20,7 @@ CPPFLAGS += -Iinclude/
 # ##############################################################################
 # Targets
 
-all = ftcat ft2csv ftdump
+all = ftcat ft2csv ftdump ftsort
 
 .PHONY: all clean
 all: ${all}
@@ -35,6 +35,9 @@ ft2csv: ${obj-ft2csv}
 
 obj-ftdump  = ftdump.o timestamp.o mapping.o
 ftdump: ${obj-ftdump}
+
+obj-ftsort = ftsort.o timestamp.o mapping.o
+ftsort: ${obj-ftsort}
 
 # dependency discovery
 include ${LIBLITMUS}/inc/depend.makefile
