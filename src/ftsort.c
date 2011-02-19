@@ -18,9 +18,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <time.h>
+#include <sys/time.h>
+
 #include <errno.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/mman.h>
 
 #include "mapping.h"
 
@@ -31,7 +36,17 @@ static unsigned int reordered  = 0;
 
 #define LOOK_AHEAD 1000
 
-static struct timestamp* find_lowest_seq_no(struct timestamp* start, struct timestamp* end,
+/* wall-clock time in seconds */
+double wctime(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec + 1E-6 * tv.tv_usec);
+}
+
+
+static struct timestamp* find_lowest_seq_no(struct timestamp* start,
+					    struct timestamp* end,
 					    unsigned int seqno)
 {
 	struct timestamp *pos, *min = start;
@@ -139,6 +154,7 @@ int main(int argc, char** argv)
 	struct timestamp *ts, *end;
 	int swap_byte_order = 0;
 	int opt;
+	double start, stop;
 
 	while ((opt = getopt(argc, argv, OPTS)) != -1) {
 		switch (opt) {
@@ -153,6 +169,9 @@ int main(int argc, char** argv)
 
 	if (argc - optind != 1)
 		die("arguments missing");
+
+	start = wctime();
+
 	if (map_file_rw(argv[optind], &mapped, &size))
 		die("could not map file");
 
@@ -164,12 +183,24 @@ int main(int argc, char** argv)
 		restore_byte_order(ts, end);
 
 	reorder(ts, end);
+
+	/* write back */
+	msync(ts, size, MS_SYNC | MS_INVALIDATE);
+
+	stop = wctime();
+
 	fprintf(stderr,
 		"Total       : %10d\n"
 		"Holes       : %10d\n"
-		"Reordered   : %10d\n",
+		"Reordered   : %10d\n"
+		"Size        : %10.2f Mb\n"
+		"Time        : %10.2f s\n"
+		"Throughput  : %10.2f Mb/s\n",
 		(int) count,
-		holes, reordered);
+		holes, reordered,
+		((double) size) / 1024.0 / 1024.0,
+		(stop - start),
+		((double) size) / 1024.0 / 1024.0 / (stop - start));
 
 	return 0;
 }
