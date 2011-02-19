@@ -5,6 +5,8 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
 #include "mapping.h"
 
 static int _map_file(const char* filename, void **addr, size_t *size, int writable)
@@ -26,6 +28,13 @@ static int _map_file(const char* filename, void **addr, size_t *size, int writab
 					     fd, 0);
 				if (*addr == MAP_FAILED)
 					error = -1;
+                else {
+			/* tell kernel to start getting the pages */
+			error = madvise(*addr, *size, MADV_SEQUENTIAL | MADV_WILLNEED);
+			if (error) {
+				perror("madvise");
+			}
+                }
 				close(fd);
 			} else
 				error = fd;
