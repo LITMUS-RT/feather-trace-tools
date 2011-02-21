@@ -30,12 +30,18 @@
 static int want_interleaved    = 1;
 static int want_best_effort    = 0;
 
+/* discard samples from a specific CPU */
+static int avoid_cpu = -1;
+/* only use samples from a specific CPU */
+static int only_cpu  = -1;
+
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
 static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
 static unsigned int non_rt     = 0;
 static unsigned int interleaved = 0;
+static unsigned int avoided    = 0;
 
 #define CYCLES_PER_US 2128
 
@@ -114,6 +120,12 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 {
 	struct timestamp *second;
 
+	if (first->cpu == avoid_cpu ||
+	    (only_cpu != -1 && first->cpu != only_cpu)) {
+		avoided++;
+		return;
+	}
+
 	second = find_second_ts(first, end);
 	if (second) {
 		if (second->timestamp - first->timestamp > threshold)
@@ -140,6 +152,7 @@ static void print_single_csv(struct timestamp* ts)
 static void print_single_bin(struct timestamp* ts)
 {
 	float delta = ts->timestamp;
+
 	fwrite(&delta, sizeof(delta), 1, stdout);
 }
 
@@ -147,7 +160,10 @@ single_fmt_t single_fmt = print_single_csv;
 
 static void show_single(struct timestamp* ts)
 {
-	if (ts->task_type == TSK_RT) {
+	if (ts->cpu == avoid_cpu ||
+	    (only_cpu != -1 && ts->cpu != only_cpu)) {
+		avoided++;
+	} else if (ts->task_type == TSK_RT) {
 		single_fmt(ts);
 		complete++;
 	} else
@@ -176,11 +192,13 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 }
 
 #define USAGE								\
-	"Usage: ft2csv [-r] [-i] [-b] <event_name>  <logfile> \n"	\
+	"Usage: ft2csv [-r] [-i] [-b] [-a CPU] [-o CPU] <event_name>  <logfile> \n" \
 	"   -i: ignore interleaved  -- ignore samples if start "	\
 	"and end are non-consecutive\n"					\
 	"   -b: best effort         -- don't skip non-rt time stamps \n" \
 	"   -r: raw binary format   -- don't produce .csv output \n"	\
+	"   -a: avoid CPU           -- skip samples from a specific CPU\n" \
+	"   -o: only CPU            -- skip all samples from other CPUs\n" \
 	""
 
 static void die(char* msg)
@@ -192,7 +210,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ibr"
+#define OPTS "ibra:o:"
 
 int main(int argc, char** argv)
 {
@@ -207,13 +225,27 @@ int main(int argc, char** argv)
 		switch (opt) {
 		case 'i':
 			want_interleaved = 0;
+			fprintf(stderr, "Discarging interleaved samples.\n");
 			break;
 		case 'b':
+			fprintf(stderr,"Not filtering samples from best-effort"
+				" tasks.\n");
 			want_best_effort = 1;
 			break;
 		case 'r':
+			fprintf(stderr, "Generating binary (raw) output.\n");
 			single_fmt  = print_single_bin;
 			format_pair = print_pair_bin;
+			break;
+		case 'a':
+			avoid_cpu = atoi(optarg);
+			fprintf(stderr, "Disarding all samples from CPU %d.\n",
+				avoid_cpu);
+			break;
+		case 'o':
+			only_cpu = atoi(optarg);
+			fprintf(stderr, "Using only samples from CPU %d.\n",
+				only_cpu);
 			break;
 		default:
 			die("Unknown option.");
@@ -246,13 +278,14 @@ int main(int argc, char** argv)
 	fprintf(stderr,
 		"Total       : %10d\n"
 		"Skipped     : %10d\n"
+		"Avoided     : %10d\n"
 		"Complete    : %10d\n"
 		"Incomplete  : %10d\n"
 		"Filtered    : %10d\n"
 		"Non RT      : %10d\n"
 		"Interleaved : %10d\n",
 		(int) count,
-		skipped, complete,
+		skipped, avoided, complete,
 		incomplete, filtered, non_rt,
 		interleaved);
 
