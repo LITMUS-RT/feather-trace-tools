@@ -29,6 +29,17 @@ trap 'on_finish' SIGUSR1
 # works for sparc64 and Intel x86 if all CPUs are online
 NUM_CPUS=`egrep -c '^processor|online'   /proc/cpuinfo`
 
+# Trace ID Key:
+# 501 - sched_trace_task_name
+# 502 - sched_trace_task_param
+# 503 - sched_trace_task_release
+# 504 - sched_trace_task_switch_to
+# 505 - sched_trace_task_switch_away
+# 506 - sched_trace_task_completion
+# 507 - sched_trace_task_block
+# 508 - sched_trace_task_resume
+# 509 - sched_trace_action
+# 510 - sched_trace_sys_release
 ST_IDS="501 502 503 504 505 506 507 508 509 510"
 
 TAG=$1
