@@ -39,7 +39,8 @@ static void dump(struct timestamp* ts, size_t count)
 		last_seq = x->seq_no;
 		if (name)
 			printf("%-15s %-8s seq:%u cpu:%d timestamp:%llu\n",
-			       name, task_type2str(x->task_type), x->seq_no, x->cpu, x->timestamp);
+			       name, task_type2str(x->task_type), x->seq_no, x->cpu,
+			       (unsigned long long)  x->timestamp);
 		else
 			printf("event:%d seq:%u cpu:%d type:%s\n",
 			       (int) x->event, x->seq_no, x->cpu, task_type2str(x->task_type));
