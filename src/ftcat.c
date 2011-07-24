@@ -24,43 +24,45 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <sys/ioctl.h>
+
 #include "timestamp.h"
 
 #define MAX_EVENTS 128
 
 static int fd;
-static int event_count = 1;
+static int event_count = 0;
 static cmd_t  ids[MAX_EVENTS];
 static unsigned long total_bytes = 0;
 
 
 static int disable_all(int fd)
 {
-	int ret, size;
-	ids[0] = DISABLE_CMD;
-	fprintf(stderr, "Disabling %d events.\n", event_count - 1);
-	size = event_count * sizeof(cmd_t);
-	ret  = write(fd, ids, size);
-	if (ret != size)
-		fprintf(stderr, "write = %d, meant to write %d (%m)\n", ret, size);
-	return size == ret;
+	int disabled = 0;
+	int i;
+
+	fprintf(stderr, "Disabling %d events.\n", event_count);
+	for (i = 0; i < event_count; i++)
+		if (ioctl(fd, DISABLE_CMD, ids[i]) < 0)
+			perror("ioctl(DISABLE_CMD)");
+		else
+			disabled++;
+
+	return  disabled == event_count;
 }
 
 static int enable_event(int fd, char* str)
 {
 	cmd_t   *id;
-	cmd_t   cmd[2];
 
 	id = ids + event_count;
 	if (!str2event(str, id)) {
 		errno = EINVAL;
 		return 0;
 	}
-
 	event_count += 1;
-	cmd[0] = ENABLE_CMD;
-	cmd[1] = id[0];
-	return write(fd, cmd, sizeof(cmd)) == sizeof(cmd_t)  * 2;
+
+	return ioctl(fd, ENABLE_CMD, *id) == 0;
 }
 
 
