@@ -54,6 +54,7 @@ static int disable_all(int fd)
 static int enable_event(int fd, char* str)
 {
 	cmd_t   *id;
+	int err;
 
 	id = ids + event_count;
 	if (!str2event(str, id)) {
@@ -62,7 +63,13 @@ static int enable_event(int fd, char* str)
 	}
 	event_count += 1;
 
-	return ioctl(fd, ENABLE_CMD, *id) == 0;
+	err = ioctl(fd, ENABLE_CMD, *id);
+
+	if (err < 0)
+		printf("ioctl(%d, %d, %d) => %d (errno: %d)\n", fd, (int) ENABLE_CMD, *id,
+		       err, errno);
+
+	return err == 0;
 }
 
 
