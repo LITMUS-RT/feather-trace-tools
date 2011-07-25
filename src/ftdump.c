@@ -38,12 +38,19 @@ static void dump(struct timestamp* ts, size_t count)
 			printf("==== non-consecutive sequence number ====\n");
 		last_seq = x->seq_no;
 		if (name)
-			printf("%-15s %-8s seq:%u cpu:%d timestamp:%llu\n",
-			       name, task_type2str(x->task_type), x->seq_no, x->cpu,
-			       (unsigned long long)  x->timestamp);
+			printf("%-20s seq:%u  timestamp:%llu  cpu:%d  type:%-8s \n",
+			       name,  x->seq_no,
+			       (unsigned long long)  x->timestamp,
+			       x->cpu,
+			       task_type2str(x->task_type));
 		else
-			printf("event:%d seq:%u cpu:%d type:%s\n",
-			       (int) x->event, x->seq_no, x->cpu, task_type2str(x->task_type));
+			printf("%16s:%3u seq:%u  timestamp:%llu  cpu:%u  type:%-8s\n",
+			       "event",
+			       (unsigned int) x->event, x->seq_no,
+			       (unsigned long long)  x->timestamp,
+			       x->cpu,
+			       task_type2str(x->task_type));
+
 	}
 }
 
