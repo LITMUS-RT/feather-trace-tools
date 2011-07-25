@@ -23,6 +23,13 @@ static struct event_name event_table[] =
 	EVENT(CXS),
 	EVENT(SEND_RESCHED),
 	{"RELEASE_LATENCY", TS_RELEASE_LATENCY},
+
+	EVENT(SYSCALL_IN),
+	EVENT(SYSCALL_OUT),
+	EVENT(LOCK),
+	EVENT(UNLOCK),
+	{"LOCK_SUSPEND", TS_LOCK_SUSPEND},
+	{"LOCK_RESUME", TS_LOCK_RESUME},
 };
 
 int  str2event(const char* str, cmd_t *id)
