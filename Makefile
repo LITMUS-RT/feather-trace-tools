@@ -5,7 +5,7 @@
 -include .config
 
 # Where is the LITMUS^RT userspace library source tree?
-LIBLITMUS ?= ../liblitmus2010
+LIBLITMUS ?= ../liblitmus
 
 # Include default configuration from liblitmus
 # Liblitmus must have been built before ft_tools can be built.
