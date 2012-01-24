@@ -38,19 +38,22 @@ static void dump(struct timestamp* ts, size_t count)
 			printf("==== non-consecutive sequence number ====\n");
 		last_seq = x->seq_no;
 		if (name)
-			printf("%-20s seq:%u  timestamp:%llu  cpu:%d  type:%-8s \n",
+			printf("%-20s seq:%u  timestamp:%llu  cpu:%d  type:%-8s irq:%u irqc:%02u \n",
 			       name,  x->seq_no,
 			       (unsigned long long)  x->timestamp,
 			       x->cpu,
-			       task_type2str(x->task_type));
+			       task_type2str(x->task_type),
+			       x->irq_flag,
+			       x->irq_count);
 		else
-			printf("%16s:%3u seq:%u  timestamp:%llu  cpu:%u  type:%-8s\n",
+			printf("%16s:%3u seq:%u  timestamp:%llu  cpu:%u  type:%-8s irq:%u irqc:%02u\n",
 			       "event",
 			       (unsigned int) x->event, x->seq_no,
 			       (unsigned long long)  x->timestamp,
 			       x->cpu,
-			       task_type2str(x->task_type));
-
+			       task_type2str(x->task_type),
+			       x->irq_flag,
+			       x->irq_count);
 	}
 }
 
@@ -75,14 +78,12 @@ int main(int argc, char** argv)
 	       "\t offset(timestamp) = %3lu\n"
 	       "\t offset(seq_no)    = %3lu\n"
 	       "\t offset(cpu)       = %3lu\n"
-	       "\t offset(event)     = %3lu\n"
-	       "\t offset(task_type) = %3lu\n",
+	       "\t offset(event)     = %3lu\n",
 	       (unsigned long) sizeof(struct timestamp),
 	       offset(struct timestamp, timestamp),
 	       offset(struct timestamp, seq_no),
 	       offset(struct timestamp, cpu),
-	       offset(struct timestamp, event),
-	       offset(struct timestamp, task_type));
+	       offset(struct timestamp, event));
 
 	if (argc != 2)
 		die("Usage: ftdump  <logfile>");
