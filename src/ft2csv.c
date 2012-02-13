@@ -37,15 +37,12 @@ static int only_cpu  = -1;
 
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
-static unsigned int filtered   = 0;
 static unsigned int skipped    = 0;
 static unsigned int non_rt     = 0;
 static unsigned int interleaved = 0;
 static unsigned int avoided    = 0;
 
 #define CYCLES_PER_US 2128
-
-static unsigned long long threshold = CYCLES_PER_US * 10000; /* 10 ms == 10 full ticks */
 
 static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 			      int cpu)
@@ -128,9 +125,7 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 
 	second = find_second_ts(first, end);
 	if (second) {
-		if (second->timestamp - first->timestamp > threshold)
-			filtered++;
-		else if (first->task_type != TSK_RT &&
+		if (first->task_type != TSK_RT &&
 			 second->task_type != TSK_RT && !want_best_effort)
 			non_rt++;
 		else {
@@ -281,12 +276,11 @@ int main(int argc, char** argv)
 		"Avoided     : %10d\n"
 		"Complete    : %10d\n"
 		"Incomplete  : %10d\n"
-		"Filtered    : %10d\n"
 		"Non RT      : %10d\n"
 		"Interleaved : %10d\n",
 		(int) count,
 		skipped, avoided, complete,
-		incomplete, filtered, non_rt,
+		incomplete, non_rt,
 		interleaved);
 
 	return 0;
