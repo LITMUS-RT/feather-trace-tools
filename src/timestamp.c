@@ -28,6 +28,8 @@ static struct event_name event_table[] =
 	EVENT(SYSCALL_OUT),
 	EVENT(LOCK),
 	EVENT(UNLOCK),
+	EVENT(READ_LOCK),
+	EVENT(READ_UNLOCK),
 	{"LOCK_SUSPEND", TS_LOCK_SUSPEND},
 	{"LOCK_RESUME", TS_LOCK_RESUME},
 };
