@@ -27,8 +27,11 @@
 
 #include "timestamp.h"
 
+#define AUTO_SELECT -1
+
 static int want_interleaved    = 1;
 static int want_best_effort    = 0;
+static int find_by_pid         = AUTO_SELECT;
 
 /* discard samples from a specific CPU */
 static int avoid_cpu = -1;
@@ -94,28 +97,133 @@ static struct timestamp* find_second_ts(struct timestamp* start,
 		       start->event);
 }
 
-typedef void (*pair_fmt_t)(struct timestamp* first, struct timestamp* second);
+static struct timestamp* next_pid(struct timestamp* start, struct timestamp* end,
+				  unsigned int pid, unsigned long id1, unsigned long id2)
+{
+	struct timestamp* pos;
+	unsigned int last_seqno = 0;
 
-static void print_pair_csv(struct timestamp* first, struct timestamp* second)
+	for (pos = start; pos != end;  pos++) {
+		/* check for for holes in the sequence number */
+		if (last_seqno && last_seqno + 1 != pos->seq_no) {
+			/* stumbled across a hole */
+			return NULL;
+		}
+		last_seqno = pos->seq_no;
+
+		/* only care about this PID */
+		if (pos->pid == pid) {
+			/* is  it the right one? */
+			if (pos->event == id1 || pos->event == id2)
+				return pos;
+			else
+				/* Don't allow unexptected IDs interleaved.
+				 * Tasks are sequential, there shouldn't be
+				 * anything else. */
+				return NULL;
+		}
+	}
+	return NULL;
+}
+
+static struct timestamp* accumulate_exec_time(
+	struct timestamp* start, struct timestamp* end,
+	unsigned int pid, unsigned long stop_id, uint64_t *sum)
+{
+	struct timestamp* pos = start;
+	uint64_t exec_start;
+
+	*sum = 0;
+
+	while (1) {
+		exec_start = pos->timestamp;
+
+		/* find a suspension */
+		pos = next_pid(pos + 1, end, pid, TS_LOCK_SUSPEND, stop_id);
+		if (!pos)
+			/* broken stream */
+			return NULL;
+
+		/* account for exec until pos */
+		*sum += pos->timestamp - exec_start;
+
+		if (pos->event == stop_id)
+			/* no suspension */
+			return pos;
+
+		/* find matching resume */
+		pos = next_pid(pos + 1, end, pid, TS_LOCK_RESUME, 0);
+		if (!pos)
+			/* broken stream */
+			return NULL;
+
+		/* must be a resume => start over */
+	}
+}
+
+typedef void (*pair_fmt_t)(struct timestamp* first, struct timestamp* second, uint64_t exec_time);
+
+static void print_pair_csv(struct timestamp* first, struct timestamp* second, uint64_t exec_time)
 {
 	printf("%llu, %llu, %llu\n",
 	       (unsigned long long) first->timestamp,
 	       (unsigned long long) second->timestamp,
-	       (unsigned long long)
-	       (second->timestamp - first->timestamp));
+	       (unsigned long long) exec_time);
 }
 
-static void print_pair_bin(struct timestamp* first, struct timestamp* second)
+static void print_pair_bin(struct timestamp* first, struct timestamp* second, uint64_t exec_time)
 {
-	float delta = second->timestamp - first->timestamp;
+	float delta =  exec_time;
 	fwrite(&delta, sizeof(delta), 1, stdout);
 }
 
 pair_fmt_t format_pair = print_pair_csv;
 
-static void show_csv(struct timestamp* first, struct timestamp *end)
+static void find_event_by_pid(struct timestamp* first, struct timestamp* end)
 {
 	struct timestamp *second;
+	uint64_t exec_time = 0;
+
+	/* special case: take suspensions into account */
+	if (first->event >= SUSPENSION_RANGE) {
+		second = accumulate_exec_time(first, end,
+					      first->pid,
+					      first->event + 1, &exec_time);
+	} else {
+		second = next_pid(first + 1, end, first->pid,
+				  first->event + 1, 0);
+		if (second)
+			exec_time = second->timestamp - first->timestamp;
+	}
+	if (second) {
+		format_pair(first, second, exec_time);
+		complete++;
+	} else
+		incomplete++;
+}
+
+static void find_event_by_eid(struct timestamp *first, struct timestamp* end)
+{
+	struct timestamp *second;
+	uint64_t exec_time;
+
+	second = find_second_ts(first, end);
+	if (second) {
+		exec_time = second->timestamp - first->timestamp;
+		if (first->task_type != TSK_RT &&
+			 second->task_type != TSK_RT && !want_best_effort)
+			non_rt++;
+		else {
+			format_pair(first, second, exec_time);
+			complete++;
+		}
+	} else
+		incomplete++;
+}
+
+static void show_csv(struct timestamp* first, struct timestamp *end)
+{
+
 
 	if (first->cpu == avoid_cpu ||
 	    (only_cpu != -1 && first->cpu != only_cpu)) {
@@ -123,17 +231,10 @@ static void show_csv(struct timestamp* first, struct timestamp *end)
 		return;
 	}
 
-	second = find_second_ts(first, end);
-	if (second) {
-		if (first->task_type != TSK_RT &&
-			 second->task_type != TSK_RT && !want_best_effort)
-			non_rt++;
-		else {
-			format_pair(first, second);
-			complete++;
-		}
-	} else
-		incomplete++;
+	if (find_by_pid)
+		find_event_by_pid(first, end);
+	else
+		find_event_by_eid(first, end);
 }
 
 typedef void (*single_fmt_t)(struct timestamp* ts);
@@ -205,7 +306,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ibra:o:"
+#define OPTS "ibra:o:pe"
 
 int main(int argc, char** argv)
 {
@@ -242,6 +343,14 @@ int main(int argc, char** argv)
 			fprintf(stderr, "Using only samples from CPU %d.\n",
 				only_cpu);
 			break;
+		case 'p':
+			find_by_pid = 1;
+			fprintf(stderr, "Matching timestamp pairs based on PID.\n");
+			break;
+		case 'e':
+			find_by_pid = 0;
+			fprintf(stderr, "Matching timestamp pairs based on event ID.\n");
+			break;
 		default:
 			die("Unknown option.");
 			break;
@@ -260,6 +369,9 @@ int main(int argc, char** argv)
 		if (!str2event(event_name, &id))
 			die("Unknown event!");
 	}
+
+	if (find_by_pid == AUTO_SELECT)
+		find_by_pid = id <= PID_RECORDS_RANGE;
 
 	ts    = (struct timestamp*) mapped;
 	count = size / sizeof(struct timestamp);
