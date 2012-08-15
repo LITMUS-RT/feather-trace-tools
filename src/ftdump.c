@@ -29,26 +29,30 @@
 static void dump(struct timestamp* ts, size_t count)
 {
 	struct timestamp *x;
-	unsigned int last_seq = 0;
+	uint32_t last_seq = 0, next_seq;
 	const char* name;
 	while (count--) {
 		x = ts++;
 		name = event2str(x->event);
-		if (last_seq && last_seq + 1 != x->seq_no)
+		next_seq = last_seq + 1;
+		if (last_seq && next_seq != x->seq_no)
 			printf("==== non-consecutive sequence number ====\n");
 		last_seq = x->seq_no;
 		if (name)
-			printf("%-20s seq:%u  timestamp:%llu  cpu:%d  type:%-8s irq:%u irqc:%02u \n",
+			printf("%-20s seq:%u  pid:%u  timestamp:%llu  cpu:%d"
+			       "  type:%-8s irq:%u irqc:%02u \n",
 			       name,  x->seq_no,
+			       x->pid,
 			       (unsigned long long)  x->timestamp,
 			       x->cpu,
 			       task_type2str(x->task_type),
 			       x->irq_flag,
 			       x->irq_count);
 		else
-			printf("%16s:%3u seq:%u  timestamp:%llu  cpu:%u  type:%-8s irq:%u irqc:%02u\n",
+			printf("%16s:%3u seq:%u pid:%u  timestamp:%llu  cpu:%u"
+			       "  type:%-8s irq:%u irqc:%02u\n",
 			       "event",
-			       (unsigned int) x->event, x->seq_no,
+			       (unsigned int) x->event, x->seq_no, x->pid,
 			       (unsigned long long)  x->timestamp,
 			       x->cpu,
 			       task_type2str(x->task_type),
@@ -75,12 +79,10 @@ int main(int argc, char** argv)
 
 	printf("struct timestamp:\n"
 	       "\t size              = %3lu\n"
-	       "\t offset(timestamp) = %3lu\n"
 	       "\t offset(seq_no)    = %3lu\n"
 	       "\t offset(cpu)       = %3lu\n"
 	       "\t offset(event)     = %3lu\n",
 	       (unsigned long) sizeof(struct timestamp),
-	       offset(struct timestamp, timestamp),
 	       offset(struct timestamp, seq_no),
 	       offset(struct timestamp, cpu),
 	       offset(struct timestamp, event));

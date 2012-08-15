@@ -9,8 +9,15 @@ enum task_type_marker {
 	TSK_UNKNOWN
 };
 
+/* Note: bitfields are highly non-portable (allocation is completely
+ * implementation-defined).  Make sure you use the *same* compiler as the one
+ * used for the kernel itself (this works with gcc in practice, but is not
+ * *guaranteed* to work).  Patches to get rid of the bitfields (without
+ * enlarging the structure) are highly welcome.
+ */
 struct timestamp {
-	uint64_t		timestamp;
+	uint64_t		timestamp:48;
+	uint64_t		pid:16;
 	uint32_t		seq_no;
 	uint8_t			cpu;
 	uint8_t			event;
