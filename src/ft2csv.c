@@ -31,6 +31,7 @@
 
 static int want_interleaved    = 1;
 static int want_best_effort    = 0;
+static int want_interrupted    = 0;
 static int find_by_pid         = AUTO_SELECT;
 
 /* discard samples from a specific CPU */
@@ -40,22 +41,24 @@ static int only_cpu  = -1;
 
 static unsigned int complete   = 0;
 static unsigned int incomplete = 0;
+static unsigned int interrupted = 0;
 static unsigned int skipped    = 0;
 static unsigned int non_rt     = 0;
 static unsigned int interleaved = 0;
 static unsigned int avoided    = 0;
 
-#define CYCLES_PER_US 2128
-
-static struct timestamp* next(struct timestamp* start, struct timestamp* end,
+static struct timestamp* next(struct timestamp* first, struct timestamp* end,
 			      int cpu)
 {
 	struct timestamp* pos;
-	unsigned int last_seqno = 0;
+	uint32_t last_seqno = 0, next_seqno = 0;
 
-	for (pos = start; pos != end;  pos++) {
+
+	last_seqno = first->seq_no;
+	for (pos = first + 1; pos < end;  pos++) {
 		/* check for for holes in the sequence number */
-		if (last_seqno && last_seqno + 1 != pos->seq_no) {
+		next_seqno = last_seqno + 1;
+		if (next_seqno != pos->seq_no) {
 			/* stumbled across a hole */
 			return NULL;
 		}
@@ -69,7 +72,8 @@ static struct timestamp* next(struct timestamp* start, struct timestamp* end,
 
 static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
 				 int cpu, unsigned long id,
-				 unsigned long stop_id)
+				 unsigned long stop_id,
+				 int *interrupt_flag)
 {
 	struct timestamp* pos = start;
 	int restarts = 0;
@@ -79,45 +83,74 @@ static struct timestamp* next_id(struct timestamp* start, struct timestamp* end,
 			break;
 		else if (pos->event == stop_id)
 			return NULL;
-		pos++;
+
 		restarts++;
 		if (!want_interleaved)
 			return NULL;
+		if (pos->irq_flag && !want_interrupted) {
+			*interrupt_flag = 1;
+			return NULL;
+		}
 	}
 	if (pos)
 		interleaved += restarts;
+
+	if (pos && pos->irq_flag) {
+		interrupted++;
+		if (!want_interrupted) {
+			*interrupt_flag = 1;
+			return NULL;
+		}
+	}
+
 	return pos;
 }
 
 static struct timestamp* find_second_ts(struct timestamp* start,
-					struct timestamp* end)
+					struct timestamp* end,
+					int *interrupt_flag)
 {
 	/* convention: the end->event is start->event + 1 */
-	return next_id(start + 1, end, start->cpu, start->event + 1,
-		       start->event);
+	return next_id(start, end, start->cpu, start->event + 1,
+		       start->event, interrupt_flag);
 }
 
-static struct timestamp* next_pid(struct timestamp* start, struct timestamp* end,
-				  unsigned int pid, unsigned long id1, unsigned long id2)
+static struct timestamp* next_pid(struct timestamp* first, struct timestamp* end,
+				  unsigned long id1, unsigned long id2,
+				  int interrupts_significant, int *interrupted_flag)
 {
 	struct timestamp* pos;
-	unsigned int last_seqno = 0;
+	uint32_t last_seqno = 0, next_seqno = 0;
 
-	for (pos = start; pos != end;  pos++) {
+
+	last_seqno = first->seq_no;
+	for (pos = first + 1; pos < end;  pos++) {
 		/* check for for holes in the sequence number */
-		if (last_seqno && last_seqno + 1 != pos->seq_no) {
+		next_seqno = last_seqno + 1;
+		if (next_seqno != pos->seq_no) {
 			/* stumbled across a hole */
 			return NULL;
 		}
 		last_seqno = pos->seq_no;
 
+		if (interrupts_significant
+		    && pos->cpu == first->cpu
+		    && pos->irq_flag) {
+			/* did an interrupt get in the way? */
+			interrupted++;
+			if (!want_interrupted) {
+				*interrupted_flag = 1;
+				return NULL;
+			}
+		}
+
 		/* only care about this PID */
-		if (pos->pid == pid) {
+		if (pos->pid == first->pid) {
 			/* is  it the right one? */
 			if (pos->event == id1 || pos->event == id2)
 				return pos;
 			else
-				/* Don't allow unexptected IDs interleaved.
+				/* Don't allow unexpected IDs interleaved.
 				 * Tasks are sequential, there shouldn't be
 				 * anything else. */
 				return NULL;
@@ -126,21 +159,55 @@ static struct timestamp* next_pid(struct timestamp* start, struct timestamp* end
 	return NULL;
 }
 
+static struct timestamp* skip_over_suspension(struct timestamp *pos,
+					      struct timestamp *end,
+					      uint64_t *last_time)
+{
+	/* Find matching resume. */
+	pos = next_pid(pos, end,
+		       TS_LOCK_RESUME, TS_SCHED_START,
+		       0, NULL);
+
+	if (!pos || pos->timestamp < *last_time)
+		/* broken stream */
+		return NULL;
+
+	*last_time = pos->timestamp;
+
+	if (pos->event == TS_SCHED_START) {
+		/* Was scheduled out, find TS_SCHED_END. */
+		pos = next_pid(pos, end, TS_SCHED_END, 0, 0, NULL);
+		if (!pos || pos->timestamp < *last_time)
+			return NULL;
+
+		/* next find TS_LOCK_RESUME */
+		pos = next_pid(pos, end, TS_LOCK_RESUME, 0, 0, NULL);
+	}
+
+
+	return pos;
+}
+
 static struct timestamp* accumulate_exec_time(
 	struct timestamp* start, struct timestamp* end,
-	unsigned int pid, unsigned long stop_id, uint64_t *sum)
+	unsigned long stop_id, uint64_t *sum,
+	int *interrupted_flag)
 {
-	struct timestamp* pos = start;
+	struct timestamp *pos = start;
 	uint64_t exec_start;
+	uint64_t last_time = start->timestamp;
 
 	*sum = 0;
 
 	while (1) {
 		exec_start = pos->timestamp;
 
-		/* find a suspension */
-		pos = next_pid(pos + 1, end, pid, TS_LOCK_SUSPEND, stop_id);
-		if (!pos)
+		/* Find a suspension or the proper end. */
+		pos = next_pid(pos, end,
+			       TS_LOCK_SUSPEND, stop_id,
+			       1, interrupted_flag);
+
+		if (!pos || pos->timestamp < last_time)
 			/* broken stream */
 			return NULL;
 
@@ -148,16 +215,25 @@ static struct timestamp* accumulate_exec_time(
 		*sum += pos->timestamp - exec_start;
 
 		if (pos->event == stop_id)
-			/* no suspension */
+			/* no suspension or preemption */
 			return pos;
+		else {
+			last_time = pos->timestamp;
 
-		/* find matching resume */
-		pos = next_pid(pos + 1, end, pid, TS_LOCK_RESUME, 0);
-		if (!pos)
-			/* broken stream */
-			return NULL;
+			/* handle self-suspension */
+			pos = skip_over_suspension(pos, end, &last_time);
 
-		/* must be a resume => start over */
+			/* Must be a resume => start over.  If a resume sample is
+			 * affected by interrupts we don't care since it does not
+			 * contribute to the reported execution cost.
+			 */
+
+			if (!pos || pos->timestamp < last_time)
+				/* broken stream */
+				return NULL;
+
+			last_time = pos->timestamp;
+		}
 	}
 }
 
@@ -183,22 +259,26 @@ static void find_event_by_pid(struct timestamp* first, struct timestamp* end)
 {
 	struct timestamp *second;
 	uint64_t exec_time = 0;
+	int interrupted = 0;
 
 	/* special case: take suspensions into account */
 	if (first->event >= SUSPENSION_RANGE) {
 		second = accumulate_exec_time(first, end,
-					      first->pid,
-					      first->event + 1, &exec_time);
+					      first->event + 1, &exec_time,
+					      &interrupted);
 	} else {
-		second = next_pid(first + 1, end, first->pid,
-				  first->event + 1, 0);
-		if (second)
+		second = next_pid(first, end,
+				  first->event + 1, 0,
+				  1, &interrupted);
+		if (second && second->timestamp > first->timestamp)
 			exec_time = second->timestamp - first->timestamp;
+		else
+			second = NULL;
 	}
 	if (second) {
 		format_pair(first, second, exec_time);
 		complete++;
-	} else
+	} else if (!interrupted)
 		incomplete++;
 }
 
@@ -206,8 +286,9 @@ static void find_event_by_eid(struct timestamp *first, struct timestamp* end)
 {
 	struct timestamp *second;
 	uint64_t exec_time;
+	int interrupted = 0;
 
-	second = find_second_ts(first, end);
+	second = find_second_ts(first, end, &interrupted);
 	if (second) {
 		exec_time = second->timestamp - first->timestamp;
 		if (first->task_type != TSK_RT &&
@@ -217,7 +298,7 @@ static void find_event_by_eid(struct timestamp *first, struct timestamp* end)
 			format_pair(first, second, exec_time);
 			complete++;
 		}
-	} else
+	} else if (!interrupted)
 		incomplete++;
 }
 
@@ -295,6 +376,7 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 	"   -r: raw binary format   -- don't produce .csv output \n"	\
 	"   -a: avoid CPU           -- skip samples from a specific CPU\n" \
 	"   -o: only CPU            -- skip all samples from other CPUs\n" \
+	"   -x: allow interrupts    -- don't skip samples with IRQ-happned flag \n" \
 	""
 
 static void die(char* msg)
@@ -306,7 +388,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ibra:o:pe"
+#define OPTS "ibra:o:pex"
 
 int main(int argc, char** argv)
 {
@@ -323,13 +405,17 @@ int main(int argc, char** argv)
 			want_interleaved = 0;
 			fprintf(stderr, "Discarging interleaved samples.\n");
 			break;
+		case 'x':
+			want_interrupted = 1;
+			fprintf(stderr, "Not filtering disturbed-by-interrupt samples.\n");
+			break;
 		case 'b':
 			fprintf(stderr,"Not filtering samples from best-effort"
 				" tasks.\n");
 			want_best_effort = 1;
 			break;
 		case 'r':
-			fprintf(stderr, "Generating binary (raw) output.\n");
+			fprintf(stderr, "Generating binary, NumPy-compatible output.\n");
 			single_fmt  = print_single_bin;
 			format_pair = print_pair_bin;
 			break;
@@ -382,18 +468,23 @@ int main(int argc, char** argv)
 	else
 		show_id(ts, end, id);
 
-	fprintf(stderr,
-		"Total       : %10d\n"
-		"Skipped     : %10d\n"
-		"Avoided     : %10d\n"
-		"Complete    : %10d\n"
-		"Incomplete  : %10d\n"
-		"Non RT      : %10d\n"
-		"Interleaved : %10d\n",
-		(int) count,
-		skipped, avoided, complete,
-		incomplete, non_rt,
-		interleaved);
+	if (count == skipped)
+		fprintf(stderr, "Event %s not present.\n",
+			argv[optind]);
+	else
+		fprintf(stderr,
+			"Total       : %10d\n"
+			"Skipped     : %10d\n"
+			"Avoided     : %10d\n"
+			"Complete    : %10d\n"
+			"Incomplete  : %10d\n"
+			"Non RT      : %10d\n"
+			"Interleaved : %10d\n"
+			"Interrupted : %10d\n",
+			(int) count,
+			skipped, avoided, complete,
+			incomplete, non_rt,
+			interleaved, interrupted);
 
 	return 0;
 }
