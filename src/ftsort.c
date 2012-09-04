@@ -140,6 +140,17 @@ static void move_record(struct timestamp* target, struct timestamp* pos)
 			/* Bail out before we cause more disturbance to the
 			 * stream. */
 			aborted_moves++;
+			if (want_verbose)
+				printf("Sequentiality constraint: "
+				       "<ev:%s seq:%u pid:%u cpu:%u at %llu> "
+				       "must come before "
+				       "<ev:%s seq:%u pid:%u cpu:%u at %llu>\n",
+				       event2str(prev->event),
+				       prev->seq_no, prev->pid, prev->cpu,
+				       (unsigned long long) prev->timestamp,
+				       event2str(pos->event),
+				       pos->seq_no, pos->pid, pos->cpu,
+				       (unsigned long long) pos->timestamp);
 			return;
 		}
 	}
