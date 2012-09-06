@@ -1,5 +1,32 @@
 #!/bin/bash
 
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	REL_TO_PATH="$PATH_TO_SCRIPT/$2"
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	elif [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$REL_TO_PATH/$1" ]
+	then
+	    echo "$REL_TO_PATH/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "Error: $*"
+	exit 1
+}
+
+
+[ -z "$FTCAT" ] && FTCAT=`find_helper ftcat ../ft_tools`
+[ -z "$FTCAT" ] && die "Can't find 'ftcat' utility."
+[ -z "$FTDEV" ] && FTDEV=/dev/litmus/sched_trace
+
 if [ "$1" == "-s" ]
 then
   AUTO=1
@@ -21,8 +48,7 @@ on_finish()
 # register shutdown signal handler
 trap 'on_finish' SIGUSR1
 
-[ -z "$FTCAT" ] && FTCAT=ftcat
-[ -z "$FTDEV" ] && FTDEV=/dev/litmus/sched_trace
+
 
 # Setup up sched_trace tracing.
 
