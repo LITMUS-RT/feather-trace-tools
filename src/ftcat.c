@@ -34,7 +34,7 @@ static int fd;
 static int event_count = 0;
 static cmd_t  ids[MAX_EVENTS];
 static unsigned long total_bytes = 0;
-
+static unsigned long stop_after_bytes = 0;
 
 static int disable_all(int fd)
 {
@@ -80,17 +80,22 @@ static void cat2stdout(int fd)
 	while ((rd = read(fd, buf, 4096)) > 0) {
 		total_bytes += rd;
 		fwrite(buf, 1, rd, stdout);
+		if (stop_after_bytes && total_bytes >= stop_after_bytes)
+			break;
 	}
 }
 
 
-static void usage(void)
+static void _usage(void)
 {
 	fprintf(stderr,
-		"Usage: ftcat <ft device> TS1 TS2 ...."
-		"\n");
+		"Usage: ftcat [OPTIONS] <ft device> TS1 TS2 ....\n"
+		"\nOptions:\n"
+		"   -s SIZE   --  stop tracing afer recording SIZE bytes\n");
 	exit(1);
 }
+
+#define usage(fmt, args...) do { fprintf(stderr, "Error: " fmt "\n", ## args); _usage(); }  while (0)
 
 static void shutdown(int sig)
 {
@@ -100,20 +105,45 @@ static void shutdown(int sig)
 		fprintf(stderr, "disable_all: %m\n");
 }
 
+#define OPTSTR "s:"
+
 int main(int argc, char** argv)
 {
-	const char* trace_file;
-	if (argc < 3)
-		usage();
+	int opt;
 
-	trace_file = argv[1];
+	const char* trace_file;
+
+	while ((opt = getopt(argc, argv, OPTSTR)) != -1) {
+		switch (opt) {
+		case 's':
+		        stop_after_bytes = atol(optarg);
+			if (stop_after_bytes == 0)
+				usage("invalid size (%s)", optarg);
+			break;
+		case ':':
+			usage("Argument missing.");
+			break;
+		case '?':
+		default:
+			usage("Bad argument.");
+			break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 3)
+		usage("Argument missing.");
+
+	trace_file = argv[0];
 	fd = open(trace_file, O_RDWR);
 	if (fd < 0) {
-		perror("could not open feathertrace");
+		usage("could not open feathertrace device (%s): %m", trace_file);
 		return 1;
 	}
-	argc -= 2;
-	argv += 2;
+	argc -= 1;
+	argv += 1;
 	signal(SIGINT, shutdown);
 	signal(SIGUSR1, shutdown);
 	signal(SIGTERM, shutdown);
