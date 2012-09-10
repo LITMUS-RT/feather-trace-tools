@@ -289,7 +289,7 @@ static void find_event_by_eid(struct timestamp *first, struct timestamp* end)
 	int interrupted = 0;
 
 	second = find_second_ts(first, end, &interrupted);
-	if (second) {
+	if (second && second->timestamp > first->timestamp) {
 		exec_time = second->timestamp - first->timestamp;
 		if (first->task_type != TSK_RT &&
 			 second->task_type != TSK_RT && !want_best_effort)

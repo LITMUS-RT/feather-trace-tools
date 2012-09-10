@@ -134,17 +134,21 @@ static void move_record(struct timestamp* target, struct timestamp* pos)
 		/* Refuse to violate task and CPU sequentiality: since CPUs and
 		 * tasks execute sequentially, it makes no sense to move a
 		 * timestamp before something recorded by the same task or
-		 * CPU. */
-		if (prev->cpu == pos->cpu ||
-		    prev->pid == pos->pid) {
+		 * CPU. Exception: TS_SEND_RESCHED_START is actually recorded
+		 * on a different CPU, so it is not subject to sequentiality
+		 * constraints.*/
+		if (prev->event != TS_SEND_RESCHED_START &&
+		    pos->event  != TS_SEND_RESCHED_START &&
+		    (prev->cpu == pos->cpu ||
+		     (prev->pid == pos->pid && pos->pid != 0))) {
 			/* Bail out before we cause more disturbance to the
 			 * stream. */
 			aborted_moves++;
 			if (want_verbose)
-				printf("Sequentiality constraint: "
-				       "<ev:%s seq:%u pid:%u cpu:%u at %llu> "
-				       "must come before "
-				       "<ev:%s seq:%u pid:%u cpu:%u at %llu>\n",
+				printf("Sequentiality constraint:\n"
+				       "\t<ev:%s seq:%u pid:%u cpu:%u at %llu>\n"
+				       "\tmust come before\n"
+				       "\t<ev:%s seq:%u pid:%u cpu:%u at %llu>\n",
 				       event2str(prev->event),
 				       prev->seq_no, prev->pid, prev->cpu,
 				       (unsigned long long) prev->timestamp,
@@ -213,7 +217,8 @@ static void pre_check_cpu_monotonicity(struct timestamp *start,
 		prev[i] = pos[i] = NULL;
 
 	for (next = start; next < end; next++) {
-		if (next->event >= SINGLE_RECORDS_RANGE)
+		if (next->event >= SINGLE_RECORDS_RANGE ||
+		    next->event == TS_SEND_RESCHED_START)
 			continue;
 
 		outlier = 0;
