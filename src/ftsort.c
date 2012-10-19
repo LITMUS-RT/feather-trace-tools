@@ -1,5 +1,5 @@
 /*    ft2sort -- Sort Feather-Trace events in a binary file by sequence number.
- *    Copyright (C) 2011  B. Brandenburg.
+ *    Copyright (C) 2011,2012  B. Brandenburg.
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ static unsigned int holes      = 0;
 static unsigned int reordered  = 0;
 
 #define LOOK_AHEAD 1000
+static int want_verbose = 0;
 
 /* wall-clock time in seconds */
 double wctime(void)
@@ -133,8 +134,10 @@ static void restore_byte_order(struct timestamp* start, struct timestamp* end)
 #define USAGE							\
 	"Usage: ftsort [-e] <logfile> \n"			\
 	"   -e: endianess swap      -- restores byte order \n"	\
+	"   -s: simulate            -- don't overwrite file\n"  \
+	"   -v: verbose             -- be chatty\n"		\
 	"\n"							\
-	"WARNING: Changes are permanent.\n"
+	"WARNING: Changes are permanent, unless -s is specified.\n"
 
 static void die(char* msg)
 {
@@ -145,7 +148,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "e"
+#define OPTS "esv"
 
 int main(int argc, char** argv)
 {
@@ -153,6 +156,7 @@ int main(int argc, char** argv)
 	size_t size, count;
 	struct timestamp *ts, *end;
 	int swap_byte_order = 0;
+	int simulate = 0;
 	int opt;
 	double start, stop;
 
@@ -160,6 +164,12 @@ int main(int argc, char** argv)
 		switch (opt) {
 		case 'e':
 			swap_byte_order = 1;
+			break;
+		case 's':
+			simulate = 1;
+			break;
+		case 'v':
+			want_verbose = 1;
 			break;
 		default:
 			die("Unknown option.");
@@ -172,8 +182,13 @@ int main(int argc, char** argv)
 
 	start = wctime();
 
-	if (map_file_rw(argv[optind], &mapped, &size))
-		die("could not map file");
+	if (simulate) {
+		if (map_file(argv[optind], &mapped, &size))
+			die("could not RO map file");
+	} else {
+		if (map_file_rw(argv[optind], &mapped, &size))
+			die("could not RW map file");
+	}
 
 	ts    = (struct timestamp*) mapped;
 	count = size / sizeof(struct timestamp);
@@ -185,7 +200,10 @@ int main(int argc, char** argv)
 	reorder(ts, end);
 
 	/* write back */
-	msync(ts, size, MS_SYNC | MS_INVALIDATE);
+	if (simulate)
+		fprintf(stderr, "Note: not writing back results.\n");
+	else
+		msync(ts, size, MS_SYNC | MS_INVALIDATE);
 
 	stop = wctime();
 
