@@ -35,8 +35,11 @@ static unsigned int holes      = 0;
 static unsigned int non_monotonic = 0;
 static unsigned int reordered  = 0;
 static unsigned int aborted_moves = 0;
+static unsigned int implausible = 0;
 
 static int want_verbose = 0;
+
+double cycles_per_nanosecond = 0;
 
 #define LOOK_AHEAD 1024
 #define MAX_NR_NOT_IN_RANGE 5
@@ -255,6 +258,72 @@ static void pre_check_cpu_monotonicity(struct timestamp *start,
 	}
 }
 
+
+static struct timestamp*  find_np_upper_bound(
+	uint8_t cpu,
+	struct timestamp *start,
+	struct timestamp *end)
+{
+	struct timestamp *pos, *prev;
+
+	for (pos = start, prev = pos - 1;
+	     pos < end && prev->seq_no + 1 == pos->seq_no;
+	     pos++, prev = pos - 1) {
+		if (pos->cpu == cpu &&
+		    (pos->event == TS_RELEASE_START ||
+		     pos->event == TS_SCHED_START))
+			return pos;
+	}
+	return NULL;
+}
+
+static void filter_implausible_latencies(struct timestamp *start,
+					 struct timestamp *end)
+{
+	uint64_t last_preemptable[MAX_CPUS];
+	uint64_t delta;
+	int      lp_valid[MAX_CPUS];
+	int i;
+
+	struct timestamp *pos, *next;
+
+	for (i = 0; i < MAX_CPUS; i++)
+		lp_valid[i] = 0;
+
+	for (pos = start, next = pos + 1; next < end; pos++, next = pos + 1) {
+		/* In Linux, scheduler invocation can only start when a CPU is
+		 * preemptable. We use this to lower bound the time when a CPU
+		 * was last preemptable. */
+
+		/* reset at holes */
+		if (pos->seq_no + 1 != next->seq_no) {
+			for (i = 0; i < MAX_CPUS; i++)
+				lp_valid[i] = 0;
+		} else if (pos->event == TS_SCHED_START) {
+			lp_valid[pos->cpu] = 1;
+			last_preemptable[pos->cpu] = pos->timestamp;
+		} else if (pos->event == TS_RELEASE_LATENCY) {
+			if (lp_valid[pos->cpu] &&
+			    (next = find_np_upper_bound(pos->cpu, next, end)) &&
+			    next->timestamp > last_preemptable[pos->cpu]) {
+				delta = next->timestamp - last_preemptable[pos->cpu];
+				if (delta / cycles_per_nanosecond < pos->timestamp) {
+					/* This makes no sense: more release latency than the
+					 * upper bound on the non-preemptable section length.
+					 */
+					pos->event = UINT8_MAX;
+					implausible++;
+					if (want_verbose)
+						printf("Latency %12lluns on cpu %u is implausible: "
+						       "upper bound on non-preemptability = %10.0fns\n",
+						       (unsigned long long) pos->timestamp, pos->cpu,
+						       delta / cycles_per_nanosecond);
+				}
+			}
+		}
+	}
+}
+
 static inline uint64_t bget(int x, uint64_t quad)
 
 {
@@ -285,10 +354,11 @@ static void restore_byte_order(struct timestamp* start, struct timestamp* end)
 }
 
 #define USAGE							\
-	"Usage: ftsort [-e] <logfile> \n"			\
+	"Usage: ftsort [-e] [-s] [-v] [-c CYCLES] <logfile> \n"	\
 	"   -e: endianess swap      -- restores byte order \n"	\
 	"   -s: simulate            -- don't overwrite file\n"  \
 	"   -v: verbose             -- be chatty\n"		\
+	"   -c: CPU speed           -- cycles per nanosecond"	\
 	"\n"							\
 	"WARNING: Changes are permanent, unless -s is specified.\n"
 
@@ -301,7 +371,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "esv"
+#define OPTS "esvc:"
 
 int main(int argc, char** argv)
 {
@@ -323,6 +393,11 @@ int main(int argc, char** argv)
 			break;
 		case 'v':
 			want_verbose = 1;
+			break;
+		case 'c':
+			cycles_per_nanosecond = atof(optarg);
+			if (cycles_per_nanosecond <= 0)
+				die("Bad argument -c: need positive number.");
 			break;
 		default:
 			die("Unknown option.");
@@ -353,6 +428,9 @@ int main(int argc, char** argv)
 	pre_check_cpu_monotonicity(ts, end);
 	reorder(ts, end);
 
+	if (cycles_per_nanosecond)
+		filter_implausible_latencies(ts, end);
+
 	/* write back */
 	if (simulate)
 		fprintf(stderr, "Note: not writing back results.\n");
@@ -367,11 +445,13 @@ int main(int argc, char** argv)
 		"Reordered       : %10u\n"
 		"Non-monotonic   : %10u\n"
 		"Seq. constraint : %10u\n"
+		"Implausible     : %10u\n"
 		"Size            : %10.2f Mb\n"
 		"Time            : %10.2f s\n"
 		"Throughput      : %10.2f Mb/s\n",
 		(unsigned int) count,
 		holes, reordered, non_monotonic, aborted_moves,
+		implausible,
 		((double) size) / 1024.0 / 1024.0,
 		(stop - start),
 		((double) size) / 1024.0 / 1024.0 / (stop - start));
