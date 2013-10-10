@@ -32,8 +32,9 @@ int  str2event(const char* str, cmd_t *id);
 const char* event2str(cmd_t id);
 const char* task_type2str(int task_type);
 
-#define ENABLE_CMD  0L
-#define DISABLE_CMD 1L
+#define ENABLE_CMD	   0x0
+#define DISABLE_CMD	   0x1
+#define CALIBRATE_CMD	0x1410
 
 #define TIMESTAMP(id) id
 

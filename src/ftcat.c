@@ -26,6 +26,7 @@
 
 #include <sys/ioctl.h>
 
+#include "migration.h" /* from liblitmus */
 #include "timestamp.h"
 
 #define MAX_EVENTS 128
@@ -66,10 +67,33 @@ static int enable_event(int fd, char* str)
 	err = ioctl(fd, ENABLE_CMD, *id);
 
 	if (err < 0)
-		printf("ioctl(%d, %d, %d) => %d (errno: %d)\n", fd, (int) ENABLE_CMD, *id,
+		fprintf(stderr, "ioctl(%d, %d, %d) => %d (errno: %d)\n", fd, (int) ENABLE_CMD, *id,
 		       err, errno);
 
 	return err == 0;
+}
+
+static int calibrate_cycle_offsets(int fd)
+{
+	int cpu, err;
+	int max_cpus = sysconf(_SC_NPROCESSORS_CONF); 
+
+	for (cpu = 0; cpu < max_cpus; cpu++) {
+		err = be_migrate_to_cpu(cpu);
+		if (!err) {
+			printf("Calibrating CPU %d...", cpu);
+			err = ioctl(fd, CALIBRATE_CMD, 0);
+			if (err) {
+				printf("\n");
+				fprintf(stderr, "ioctl(CALIBRATE_CMD) => %d (errno: %d, %m)\n", err, errno);
+				return 0;
+			} else
+				printf(" done.\n");
+		} else {
+			fprintf(stderr, "Could not migrate to CPU %d (%m).\n", cpu);
+		}
+	}
+	return 1;
 }
 
 
@@ -91,7 +115,9 @@ static void _usage(void)
 	fprintf(stderr,
 		"Usage: ftcat [OPTIONS] <ft device> TS1 TS2 ....\n"
 		"\nOptions:\n"
-		"   -s SIZE   --  stop tracing afer recording SIZE bytes\n");
+		"   -s SIZE   --  stop tracing afer recording SIZE bytes\n"
+		"   -c        --  calibrate the CPU cycle counter offsets\n"
+		"\n");
 	exit(1);
 }
 
@@ -105,11 +131,12 @@ static void shutdown(int sig)
 		fprintf(stderr, "disable_all: %m\n");
 }
 
-#define OPTSTR "s:"
+#define OPTSTR "s:c"
 
 int main(int argc, char** argv)
 {
 	int opt;
+	int want_calibrate = 0;
 
 	const char* trace_file;
 
@@ -119,6 +146,9 @@ int main(int argc, char** argv)
 		        stop_after_bytes = atol(optarg);
 			if (stop_after_bytes == 0)
 				usage("invalid size (%s)", optarg);
+			break;
+		case 'c':
+			want_calibrate = 1;
 			break;
 		case ':':
 			usage("Argument missing.");
@@ -142,6 +172,12 @@ int main(int argc, char** argv)
 		usage("could not open feathertrace device (%s): %m", trace_file);
 		return 1;
 	}
+
+	if (want_calibrate && !calibrate_cycle_offsets(fd)) {
+		fprintf(stderr, "Calibrating %s failed: %m\n", *argv);
+		return 3;
+	}
+
 	argc -= 1;
 	argv += 1;
 	signal(SIGINT, shutdown);
