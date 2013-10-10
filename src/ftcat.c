@@ -31,6 +31,9 @@
 
 #define MAX_EVENTS 128
 
+int verbose = 0;
+#define vprintf(fmt, args...) if (verbose) { printf(fmt, ## args); }
+
 static int fd;
 static int event_count = 0;
 static cmd_t  ids[MAX_EVENTS];
@@ -76,19 +79,19 @@ static int enable_event(int fd, char* str)
 static int calibrate_cycle_offsets(int fd)
 {
 	int cpu, err;
-	int max_cpus = sysconf(_SC_NPROCESSORS_CONF); 
+	int max_cpus = sysconf(_SC_NPROCESSORS_CONF);
 
 	for (cpu = 0; cpu < max_cpus; cpu++) {
 		err = be_migrate_to_cpu(cpu);
 		if (!err) {
-			printf("Calibrating CPU %d...", cpu);
-			err = ioctl(fd, CALIBRATE_CMD, 0);
+			vprintf("Calibrating CPU %d...", cpu);
+			err = ioctl(fd, CALIBRATE_CMD, verbose);
 			if (err) {
-				printf("\n");
+				vprintf("\n");
 				fprintf(stderr, "ioctl(CALIBRATE_CMD) => %d (errno: %d, %m)\n", err, errno);
 				return 0;
 			} else
-				printf(" done.\n");
+				vprintf(" done.\n");
 		} else {
 			fprintf(stderr, "Could not migrate to CPU %d (%m).\n", cpu);
 		}
@@ -117,6 +120,7 @@ static void _usage(void)
 		"\nOptions:\n"
 		"   -s SIZE   --  stop tracing afer recording SIZE bytes\n"
 		"   -c        --  calibrate the CPU cycle counter offsets\n"
+		"   -v        --  enable verbose output\n"
 		"\n");
 	exit(1);
 }
@@ -131,7 +135,7 @@ static void shutdown(int sig)
 		fprintf(stderr, "disable_all: %m\n");
 }
 
-#define OPTSTR "s:c"
+#define OPTSTR "s:cv"
 
 int main(int argc, char** argv)
 {
@@ -150,6 +154,9 @@ int main(int argc, char** argv)
 		case 'c':
 			want_calibrate = 1;
 			break;
+		case 'v':
+			verbose = 1;
+			break;
 		case ':':
 			usage("Argument missing.");
 			break;
@@ -163,7 +170,7 @@ int main(int argc, char** argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 3)
+	if (argc < 1)
 		usage("Argument missing.");
 
 	trace_file = argv[0];
