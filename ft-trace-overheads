@@ -1,0 +1,112 @@
+#!/bin/bash
+
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	REL_TO_PATH="$PATH_TO_SCRIPT/$2"
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	elif [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$REL_TO_PATH/$1" ]
+	then
+	    echo "$REL_TO_PATH/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "[EE] $*"
+	exit 1
+}
+
+[ -z "$FTCAT" ] && FTCAT=`find_helper ftcat ../ft_tools`
+[ -z "$FTCAT" ] && die "Can't find 'ftcat' utility."
+
+if [ "$1" == "-s" ]
+then
+  AUTO=1
+  shift
+fi
+
+PIDS=""
+
+# signal that we're done gathering data and clean up
+on_finish()
+{
+    echo "Ending Trace..."
+    kill $PIDS
+    wait $PIDS
+
+    exit 0
+}
+
+# register shutdown signal handler
+trap 'on_finish' SIGUSR1
+
+
+CPU_FILES=`ls /dev/litmus/ft_cpu_trace* 2>/dev/null`
+MSG_FILES=`ls /dev/litmus/ft_msg_trace* 2>/dev/null`
+
+if [ -z "${CPU_FILES}${MSG_FILES}" ]
+then
+	echo "[EE] Could not find any trace files in /dev/litmus/."
+	echo "     Is this a LITMUS^RT kernel?"
+	echo "     If so, is CONFIG_SCHED_OVERHEAD_TRACE enabled?"
+	die "No trace files found."
+fi
+
+NAME=$1
+shift
+
+[ -z "${NAME}" ] && die "No name specified. Run as 'ft-trace-overheads <NAME>'."
+
+
+SCHED_EVENTS="SCHED2 SCHED CXS TICK RELEASE"
+
+CPU_EVENTS=
+for x in $SCHED_EVENTS
+do
+	CPU_EVENTS="$CPU_EVENTS ${x}_END ${x}_START"
+done
+CPU_EVENTS="$CPU_EVENTS RELEASE_LATENCY"
+
+IPI_EVENTS="SEND_RESCHED"
+MSG_EVENTS=
+for x in $IPI_EVENTS
+do
+	MSG_EVENTS="$MSG_EVENTS ${x}_END ${x}_START"
+done
+
+NAME=${NAME//[ \/]/-}
+for dev in $CPU_FILES
+do
+	CPU=`basename ${dev} | sed 's/ft_cpu_trace//'`
+	TRACE="overheads_host=`hostname`_trace=${NAME}_cpu=${CPU}.bin"
+	echo "[II] Recording $dev -> $TRACE"
+	$FTCAT $dev $CPU_EVENTS > $TRACE &
+	PIDS="$PIDS $!"
+done
+
+for dev in $MSG_FILES
+do
+	CPU=`basename ${dev} | sed 's/ft_msg_trace//'`
+	TRACE="overheads_host=`hostname`_trace=${NAME}_msg=${CPU}.bin"
+	echo "[II] Recording $dev -> $TRACE"
+	$FTCAT $dev $MSG_EVENTS > $TRACE &
+	PIDS="$PIDS $!"
+done
+
+
+if [[ $AUTO != 1 ]]
+then
+    echo "Press Enter to end tracing..."
+    read
+    on_finish
+else
+    # wait for SIGUSR1 to terminate
+    echo "Waiting for SIGUSR1 to end tracing..."
+    while [ 1 ]; do sleep 10; done
+fi
