@@ -25,6 +25,10 @@ function die()
 [ -z "$FTCAT" ] && FTCAT=`find_helper ftcat ../ft_tools`
 [ -z "$FTCAT" ] && die "Can't find 'ftcat' utility."
 
+[ -z "$SHOWSCHED" ] && SHOWSCHED=`find_helper showsched ../liblitmus`
+[ -z "$SHOWSCHED" ] && die "Can't find 'showsched' utility."
+
+
 if [ "$1" == "-s" ]
 then
   AUTO=1
@@ -81,10 +85,18 @@ do
 done
 
 NAME=${NAME//[ \/]/-}
+
+SCHEDULER=`showsched`
+if (( $? != 0 ))
+then
+    SCHEDULER="UNKNOWN"
+fi
+SCHEDULER=${SCHEDULER//[ \/_]/-}
+
 for dev in $CPU_FILES
 do
 	CPU=`basename ${dev} | sed 's/ft_cpu_trace//'`
-	TRACE="overheads_host=`hostname`_trace=${NAME}_cpu=${CPU}.bin"
+	TRACE="overheads_host=`hostname`_scheduler=${SCHEDULER}_trace=${NAME}_cpu=${CPU}.bin"
 	echo "[II] Recording $dev -> $TRACE"
 	$FTCAT $dev $CPU_EVENTS > $TRACE &
 	PIDS="$PIDS $!"
@@ -93,7 +105,7 @@ done
 for dev in $MSG_FILES
 do
 	CPU=`basename ${dev} | sed 's/ft_msg_trace//'`
-	TRACE="overheads_host=`hostname`_trace=${NAME}_msg=${CPU}.bin"
+	TRACE="overheads_host=`hostname`_scheduler=${SCHEDULER}_trace=${NAME}_msg=${CPU}.bin"
 	echo "[II] Recording $dev -> $TRACE"
 	$FTCAT $dev $MSG_EVENTS > $TRACE &
 	PIDS="$PIDS $!"
