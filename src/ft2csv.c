@@ -368,6 +368,24 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 			show_single(start);
 }
 
+static void list_ids(struct timestamp* start, struct timestamp* end)
+{
+	unsigned int already_seen[256] = {0};
+	const char *name;
+
+	for (; start != end; start++)
+		if (!already_seen[start->event])
+		{
+			already_seen[start->event] = 1;
+			name = event2str(start->event);
+			if (name)
+				printf("%s\n", name);
+			else
+				printf("%d\n", start->event);
+		}
+}
+
+
 #define USAGE								\
 	"Usage: ft2csv [-r] [-i] [-b] [-a CPU] [-o CPU] <event_name>  <logfile> \n" \
 	"   -i: ignore interleaved  -- ignore samples if start "	\
@@ -376,7 +394,9 @@ static void show_single_records(struct timestamp* start, struct timestamp* end,
 	"   -r: raw binary format   -- don't produce .csv output \n"	\
 	"   -a: avoid CPU           -- skip samples from a specific CPU\n" \
 	"   -o: only CPU            -- skip all samples from other CPUs\n" \
-	"   -x: allow interrupts    -- don't skip samples with IRQ-happned flag \n" \
+	"   -x: allow interrupts    -- don't skip samples with IRQ-happned flag\n" \
+	"   -l: list events         -- list the events present in the file\n" \
+	"   -h: help                -- show this help message\n" \
 	""
 
 static void die(char* msg)
@@ -388,7 +408,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ibra:o:pex"
+#define OPTS "ibra:o:pexhl"
 
 int main(int argc, char** argv)
 {
@@ -398,6 +418,7 @@ int main(int argc, char** argv)
 	cmd_t id;
 	int opt;
 	char event_name[80];
+	int list_events = 0;
 
 	while ((opt = getopt(argc, argv, OPTS)) != -1) {
 		switch (opt) {
@@ -437,16 +458,41 @@ int main(int argc, char** argv)
 			find_by_pid = 0;
 			fprintf(stderr, "Matching timestamp pairs based on event ID.\n");
 			break;
+		case 'l':
+			list_events = 1;
+			break;
+		case 'h':
+			errno = 0;
+			die("");
+			break;
 		default:
 			die("Unknown option.");
 			break;
 		}
 	}
 
-	if (argc - optind != 2)
-		die("arguments missing");
-	if (map_file(argv[optind + 1], &mapped, &size))
-		die("could not map file");
+
+	if (list_events) {
+		/* no event ID specified */
+		if (argc - optind != 1)
+			die("arguments missing");
+		if (map_file(argv[optind], &mapped, &size))
+			die("could not map file");
+	} else {
+		if (argc - optind != 2)
+			die("arguments missing");
+		if (map_file(argv[optind + 1], &mapped, &size))
+			die("could not map file");
+	}
+
+	ts    = (struct timestamp*) mapped;
+	count = size / sizeof(struct timestamp);
+	end   = ts + count;
+
+	if (list_events) {
+		list_ids(ts, end);
+		return 0;
+	}
 
 	if (!str2event(argv[optind], &id)) {
 		/* see if it is a short name */
@@ -458,10 +504,6 @@ int main(int argc, char** argv)
 
 	if (find_by_pid == AUTO_SELECT)
 		find_by_pid = id <= PID_RECORDS_RANGE;
-
-	ts    = (struct timestamp*) mapped;
-	count = size / sizeof(struct timestamp);
-	end   = ts + count;
 
 	if (id >= SINGLE_RECORDS_RANGE)
 		show_single_records(ts, end, id);
