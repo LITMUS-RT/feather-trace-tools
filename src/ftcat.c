@@ -112,6 +112,14 @@ static void cat2stdout(int fd)
 	}
 }
 
+static void ping(const char* fname)
+{
+	FILE* f = fopen(fname, "a");
+	if (f) {
+		fprintf(f, "%d\n", getpid());
+		fclose(f);
+	}
+}
 
 static void _usage(void)
 {
@@ -120,6 +128,7 @@ static void _usage(void)
 		"\nOptions:\n"
 		"   -s SIZE   --  stop tracing afer recording SIZE bytes\n"
 		"   -c        --  calibrate the CPU cycle counter offsets\n"
+		"   -p FILE   --  ping: write PID to FILE after initialization\n"
 		"   -v        --  enable verbose output\n"
 		"\n");
 	exit(1);
@@ -135,7 +144,7 @@ static void shutdown(int sig)
 		fprintf(stderr, "disable_all: %m\n");
 }
 
-#define OPTSTR "s:cv"
+#define OPTSTR "s:cvp:"
 
 int main(int argc, char** argv)
 {
@@ -143,6 +152,7 @@ int main(int argc, char** argv)
 	int want_calibrate = 0;
 
 	const char* trace_file;
+	const char* ping_file = NULL;
 
 	while ((opt = getopt(argc, argv, OPTSTR)) != -1) {
 		switch (opt) {
@@ -156,6 +166,9 @@ int main(int argc, char** argv)
 			break;
 		case 'v':
 			verbose = 1;
+			break;
+		case 'p':
+			ping_file = optarg;
 			break;
 		case ':':
 			usage("Argument missing.");
@@ -197,6 +210,9 @@ int main(int argc, char** argv)
 		}
 		argv++;
 	}
+
+	if (ping_file)
+		ping(ping_file);
 
 	cat2stdout(fd);
 	close(fd);
