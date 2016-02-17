@@ -101,5 +101,5 @@ then
 else
     # wait for SIGUSR1 to terminate
     echo "Waiting for SIGUSR1 to end tracing..."
-    while [ 1 ]; do sleep 10; done
+    wait $PIDS
 fi
