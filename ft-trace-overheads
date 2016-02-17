@@ -93,13 +93,17 @@ then
 fi
 SCHEDULER=${SCHEDULER//[ \/_]/-}
 
+DIR=`mktemp -d` || die "mktemp failed"
+
+COUNT=0
 for dev in $CPU_FILES
 do
 	CPU=`basename ${dev} | sed 's/ft_cpu_trace//'`
 	TRACE="overheads_host=`hostname`_scheduler=${SCHEDULER}_trace=${NAME}_cpu=${CPU}.bin"
 	echo "[II] Recording $dev -> $TRACE"
-	$FTCAT $dev $CPU_EVENTS > $TRACE &
+	$FTCAT -p "$DIR/cpu$CPU.pid" $dev $CPU_EVENTS > $TRACE &
 	PIDS="$PIDS $!"
+	COUNT=$((COUNT + 1))
 done
 
 for dev in $MSG_FILES
@@ -107,9 +111,20 @@ do
 	CPU=`basename ${dev} | sed 's/ft_msg_trace//'`
 	TRACE="overheads_host=`hostname`_scheduler=${SCHEDULER}_trace=${NAME}_msg=${CPU}.bin"
 	echo "[II] Recording $dev -> $TRACE"
-	$FTCAT $dev $MSG_EVENTS > $TRACE &
+	$FTCAT -p "$DIR/msg$CPU.pid" $dev $MSG_EVENTS > $TRACE &
 	PIDS="$PIDS $!"
+	COUNT=$((COUNT + 1))
 done
+
+READY=`ls $DIR/*.pid | wc -l`
+while [[ $READY != $COUNT ]]
+do
+    sleep 0.5
+    READY=`ls $DIR/*.pid | wc -l`
+done
+
+rm $DIR/*.pid
+rmdir $DIR
 
 
 if [[ $AUTO != 1 ]]
