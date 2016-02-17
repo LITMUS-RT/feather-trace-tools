@@ -68,16 +68,30 @@ NUM_CPUS=`egrep -c '^processor|online'   /proc/cpuinfo`
 # 510 - sched_trace_sys_release
 ST_IDS="501 502 503 504 505 506 507 508 509 510"
 
+DIR=`mktemp -d` || die "mktemp failed"
+
 TAG=$1
 PIDS=""
+COUNT=0
 for x in `seq 0 $(($NUM_CPUS - 1))`
 do
     TARGET="st-${TAG}-${x}.bin"
     echo -n "CPU $x: "
-    $FTCAT "$FTDEV$x" $ST_IDS > "$TARGET"  &
+    $FTCAT -p "$DIR/cpu${x}.pid" "$FTDEV$x" $ST_IDS > "$TARGET"  &
     PIDS="$PIDS $!"
     echo $! "> $TARGET [$?]"
+    COUNT=$((COUNT + 1))
 done
+
+READY=`ls $DIR/*.pid | wc -l`
+while [[ $READY != $COUNT ]]
+do
+    sleep 0.5
+    READY=`ls $DIR/*.pid | wc -l`
+done
+
+rm $DIR/*.pid
+rmdir $DIR
 
 if [[ $AUTO != 1 ]]
 then
