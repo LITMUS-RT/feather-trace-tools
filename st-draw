@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import os.path
+
+import cairo
+
+from sched_trace import event_name, event_time, SchedTrace
+
+import sched_trace.draw
+
+def s2ns(secs):
+    return secs * 1E9
+
+def ms2ns(millis):
+    return millis * 1E6
+
+def ns2s(nanos):
+    return nanos / 1E9
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Render a LITMUS^RT schedule trace as a PDF.")
+
+    parser.add_argument('-o', '--output',
+        help='name of the generated PDF file')
+
+    parser.add_argument('-x', '--xscale', type=float, default=36,
+        help="how many points (1/72'') per millisecond?")
+    parser.add_argument('-y', '--yscale', type=float, default=72,
+        help="how many points (1/72'') per task/core?")
+    parser.add_argument('--margin', type=float, default=36,
+        help="how many points (1/72'') of margin around the schedule?")
+
+    parser.add_argument('--major-ticks', type=float, default=10,
+        help="how many milliseconds per major tick? (zero means off)")
+    parser.add_argument('--minor-ticks', type=float, default=1,
+        help="how many milliseconds per minor tick? (zero means off)")
+
+    parser.add_argument('-f', '--from', type=float, dest='start',
+        help='draw schedule starting at time TIME', metavar='TIME')
+    parser.add_argument('-u', '--until', type=float, dest='end',
+        help='draw schedule up to time TIME', metavar='TIME')
+    parser.add_argument('-l', '--length', type=float, default=1000,
+        help='draw schedule for LENGTH time units')
+    parser.add_argument('-r', '--relative', action='store_true',
+        help='interpret -f/-u options relative to system release')
+
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='output some information while drawing')
+
+    parser.add_argument('file', nargs='*',
+        help='the binary trace files collected with st-trace')
+
+    return parser.parse_args()
+
+
+def default_output_name(input_files):
+    if not input_files:
+        return 'schedule.pdf'
+    candidate = input_files[0]
+    for i in xrange(len(candidate)):
+        if not all([f[i] == candidate[i] for f in input_files]):
+            break
+    candidate = os.path.basename(candidate[:i])
+    if candidate.endswith('_cpu='):
+        candidate = candidate.replace('_cpu=', '')
+    if not candidate:
+        return 'schedule.pdf'
+    return candidate + '.pdf'
+
+def main(args=sys.argv[1:]):
+    opts = parse_args()
+
+    if not opts.output:
+        opts.output = default_output_name(opts.file)
+
+    try:
+        trace = SchedTrace(opts.file)
+    except IOError, msg:
+        print 'Could not load trace files (%s)' % msg
+        sys.exit(1)
+
+    if opts.start:
+        # convert from ms
+        opts.start = ms2ns(opts.start)
+        # check if a relative time is given
+        if opts.relative:
+            if trace.system_releases:
+                opts.start += trace.system_releases[0]
+            else:
+                opts.start += trace.find_earliest_event
+
+    if opts.end:
+        # convert from ms
+        opts.end = ms2ns(opts.end)
+        # check if a relative time is given
+        if opts.relative:
+            if trace.system_releases:
+                opts.end += trace.system_releases[0]
+            else:
+                opts.end += trace.find_earliest_event
+
+    if not opts.start:
+        if opts.end and opts.length:
+            opts.start = opts.end - ms2ns(opts.length)
+        elif trace.system_releases:
+            opts.start = trace.system_releases[0]
+        else:
+            opts.start = trace.find_earliest_event
+
+    if not opts.end:
+        if opts.start and opts.length:
+            opts.end = opts.start + ms2ns(opts.length)
+        else:
+            opts.end = trace.latest_event_time
+
+    if opts.verbose:
+        print '[II] Rendering into file: %s' % opts.output
+        print '[II] Drawing %.2f seconds from time %.4fs until time %.4fs.' % \
+            (ns2s(opts.end - opts.start), ns2s(opts.start), ns2s(opts.end))
+        if len(trace.system_releases) == 1:
+            print '[II] The trace contains a system release at time %.4fs.' % \
+                (ns2s(trace.system_releases[0]))
+        elif len(trace.system_releases) > 1:
+            print '[!!] The trace contains multiple system releases: %s' % \
+                (' '.join(['%.4fs' % ns2s(x) for x in trace.system_releases]))
+        else:
+            print '[II] The trace does not contain a system release.'
+
+    sched_trace.draw.render(opts, trace)
+
+#     for pid in trace.task_names:
+#         print pid, '->', trace.task_names[pid], trace.task_wcets[pid], trace.task_periods[pid]
+
+#     for (to, away) in trace.scheduling_intervals_in_range(trace.system_releases[0], trace.system_releases[0] + 1E9):
+#         print to, away
+
+
+if __name__ == '__main__':
+    main()

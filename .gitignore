@@ -1,6 +1,9 @@
 .sconsign.dblite
 *.o
 *.d
+*.pyc
+*.pdf
+*.bin
 ~*
 *~
 ftcat
