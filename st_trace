@@ -75,7 +75,7 @@ PIDS=""
 COUNT=0
 for x in `seq 0 $(($NUM_CPUS - 1))`
 do
-    TARGET="st-${TAG}-${x}.bin"
+    TARGET="st-${TAG}_cpu=${x}.bin"
     echo -n "CPU $x: "
     $FTCAT -p "$DIR/cpu${x}.pid" "$FTDEV$x" $ST_IDS > "$TARGET"  &
     PIDS="$PIDS $!"
