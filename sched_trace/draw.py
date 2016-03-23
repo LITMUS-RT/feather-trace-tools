@@ -53,8 +53,12 @@ def cpu_color(cpu):
     return COLORS[cpu % len(COLORS)]
 
 MAJOR_TICK_FONT_SIZE = 24
+
 TASK_LABEL_FONT_SIZE = 18
 TASK_LABEL_COLOR = (0, 0, 0)
+
+TAG_FONT_SIZE = 12
+TAG_COLOR = (0, 0, 0)
 
 GRID_WIDTH       = 2
 MAJOR_TICK_WIDTH = 2
@@ -78,6 +82,12 @@ def center_text(c, x, y, msg):
     x_bear, y_bear, width, height, x_adv, y_adv = c.text_extents(msg)
     c.move_to(x, y)
     c.rel_move_to(-width / 2, height)
+    c.show_text(msg)
+
+def text_left_align_below(c, x, y, msg):
+    x_bear, y_bear, width, height, x_adv, y_adv = c.text_extents(msg)
+    c.move_to(x, y)
+    c.rel_move_to(0, height)
     c.show_text(msg)
 
 def vcenter_right_align_text(c, x, y, msg):
@@ -162,6 +172,7 @@ def render(opts, trace):
 
     # raw allocations
     box_height = ALLOC_HEIGHT * YRES * yscale
+    c.set_font_size(TAG_FONT_SIZE)
     for (to, away) in trace.scheduling_intervals_in_range(opts.start, opts.end):
         delta = (event_time(away) - event_time(to)) * xscale
         pid = event_pid(to)
@@ -171,6 +182,9 @@ def render(opts, trace):
         c.rectangle(x, y, delta, box_height)
         c.set_source_rgb(*cpu_color(event_cpu(to)))
         c.fill()
+
+        c.set_source_rgb(*TAG_COLOR)
+        text_left_align_below(c, x + 2, y + 2, '%d' % event_cpu(to))
 
     # draw task base lines
     c.set_source_rgb(*GRID_COLOR)
