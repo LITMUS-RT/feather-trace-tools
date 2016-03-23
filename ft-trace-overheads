@@ -86,7 +86,7 @@ done
 
 NAME=${NAME//[ \/]/-}
 
-SCHEDULER=`showsched`
+SCHEDULER=`$SHOWSCHED`
 if (( $? != 0 ))
 then
     SCHEDULER="UNKNOWN"
