@@ -27,6 +27,10 @@ function die()
 [ -z "$FTCAT" ] && die "Can't find 'ftcat' utility."
 [ -z "$FTDEV" ] && FTDEV=/dev/litmus/sched_trace
 
+[ -z "$SHOWSCHED" ] && SHOWSCHED=`find_helper showsched ../liblitmus`
+[ -z "$SHOWSCHED" ] && die "Can't find 'showsched' utility."
+
+
 if [ "$1" == "-s" ]
 then
   AUTO=1
@@ -48,7 +52,12 @@ on_finish()
 # register shutdown signal handler
 trap 'on_finish' SIGUSR1
 
-
+SCHEDULER=`$SHOWSCHED`
+if (( $? != 0 ))
+then
+    SCHEDULER="UNKNOWN"
+fi
+SCHEDULER=${SCHEDULER//[ \/_]/-}
 
 # Setup up sched_trace tracing.
 
@@ -75,7 +84,7 @@ PIDS=""
 COUNT=0
 for x in `seq 0 $(($NUM_CPUS - 1))`
 do
-    TARGET="st-${TAG}_cpu=${x}.bin"
+    TARGET="schedule_host=`hostname`_scheduler=${SCHEDULER}_trace=${TAG}_cpu=${x}.bin"
     echo -n "CPU $x: "
     $FTCAT -p "$DIR/cpu${x}.pid" "$FTDEV$x" $ST_IDS > "$TARGET"  &
     PIDS="$PIDS $!"
