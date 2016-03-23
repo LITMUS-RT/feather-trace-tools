@@ -137,6 +137,10 @@ def render(opts, trace):
 
 #    c.scale(xscale, yscale)
 
+    if opts.verbose:
+        print '[II] Dawing grid...',
+        sys.stdout.flush()
+
     # draw minor tick lines
     if opts.minor_ticks:
         c.set_source_rgb(*MINOR_TICK_COLOR)
@@ -169,6 +173,11 @@ def render(opts, trace):
             center_text(c, x, y, "%dms" % ((time - opts.start) / 1E6))
             time += opts.major_ticks * 1E6
 
+    if opts.verbose:
+        print 'done.'
+        print '[II] Dawing CPU allocations...',
+        sys.stdout.flush()
+
 
     # raw allocations
     box_height = ALLOC_HEIGHT * YRES * yscale
@@ -176,7 +185,7 @@ def render(opts, trace):
     for (to, away) in trace.scheduling_intervals_in_range(opts.start, opts.end):
         delta = (event_time(away) - event_time(to)) * xscale
         pid = event_pid(to)
-        y = ypos(task_idx[pid] + ALLOC_HEIGHT)
+        y = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT))
         x = xpos(event_time(to))
         c.new_path()
         c.rectangle(x, y, delta, box_height)
@@ -197,6 +206,11 @@ def render(opts, trace):
         x = xpos(opts.end)
         c.line_to(x, y)
         c.stroke()
+
+    if opts.verbose:
+        print 'done.'
+        print '[II] Dawing releases and deadlines...',
+        sys.stdout.flush()
 
     # draw releases and deadlines
     c.set_source_rgb(*JOB_EVENT_COLOR)
@@ -227,6 +241,11 @@ def render(opts, trace):
         c.rel_line_to(arrow_width, -arrow_width)
         c.stroke()
 
+    if opts.verbose:
+        print 'done.'
+        print '[II] Dawing job completions...',
+        sys.stdout.flush()
+
     # draw job completions
     for rec in trace.events_in_range_of_type(opts.start, opts.end, 'ST_COMPLETION'):
         pid = event_pid(rec)
@@ -238,6 +257,52 @@ def render(opts, trace):
         c.rel_move_to(-arrow_width, 0)
         c.rel_line_to(2 * arrow_width, 0)
         c.stroke()
+
+    if opts.verbose:
+        print 'done.'
+        print '[II] Dawing job suspensions...',
+        sys.stdout.flush()
+
+    # draw job suspensions
+    c.set_line_width(1)
+    for rec in trace.events_in_range_of_type(opts.start, opts.end, 'ST_BLOCK'):
+        pid = event_pid(rec)
+        y  = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.5 * ALLOC_HEIGHT)
+        y1 = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.4 * ALLOC_HEIGHT)
+        y2 = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.6 * ALLOC_HEIGHT)
+        x   = xpos(event_time(rec))
+        c.new_path()
+        c.move_to(x, y1)
+        c.line_to(x, y2)
+        c.line_to(x - arrow_width, y)
+        c.line_to(x, y1)
+        c.close_path()
+        c.stroke()
+
+
+    if opts.verbose:
+        print 'done.'
+        print '[II] Dawing job wake-ups...',
+        sys.stdout.flush()
+
+    # draw job suspensions
+    c.set_line_width(1)
+    for rec in trace.events_in_range_of_type(opts.start, opts.end, 'ST_RESUME'):
+        pid = event_pid(rec)
+        y  = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.5 * ALLOC_HEIGHT)
+        y1 = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.4 * ALLOC_HEIGHT)
+        y2 = ypos(task_idx[pid] + (1 - ALLOC_HEIGHT) + 0.6 * ALLOC_HEIGHT)
+        x   = xpos(event_time(rec))
+        c.new_path()
+        c.move_to(x, y1)
+        c.line_to(x, y2)
+        c.line_to(x + arrow_width, y)
+        c.line_to(x, y1)
+        c.close_path()
+        c.stroke()
+
+    if opts.verbose:
+        print 'done.'
 
 
     # draw task labels
