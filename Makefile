@@ -20,7 +20,7 @@ CPPFLAGS += -Iinclude/
 # ##############################################################################
 # Targets
 
-all = ftcat ft2csv ftdump ftsort
+all = ftcat ft2csv ftdump ftsort st-dump st-job-stats
 
 .PHONY: all clean
 all: ${all}
@@ -38,6 +38,14 @@ ftdump: ${obj-ftdump}
 
 obj-ftsort = ftsort.o timestamp.o mapping.o
 ftsort: ${obj-ftsort}
+
+obj-st-dump = stdump.o load.o eheap.o util.o
+st-dump: ${obj-st-dump}
+	$(CC) $(LDFLAGS) -o $@ ${obj-st-dump}  # $(LOADLIBES) $(LDLIBS)
+
+obj-st-job-stats = job_stats.o load.o eheap.o util.o
+st-job-stats: ${obj-st-job-stats}
+	$(CC) $(LDFLAGS) -o $@ ${obj-st-job-stats} #  $(LOADLIBES) $(LDLIBS)
 
 # dependency discovery
 include ${LIBLITMUS}/inc/depend.makefile
