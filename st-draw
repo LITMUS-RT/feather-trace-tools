@@ -38,6 +38,9 @@ def parse_args():
     parser.add_argument('--minor-ticks', type=float, default=1,
         help="how many milliseconds per minor tick? (zero means off)")
 
+    parser.add_argument('-j', '--show-job-ids', action='store_true',
+        help="show job IDs next to releases and completions")
+
     parser.add_argument('-f', '--from', type=float, dest='start',
         help='draw schedule starting at time TIME', metavar='TIME')
     parser.add_argument('-u', '--until', type=float, dest='end',

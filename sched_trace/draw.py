@@ -7,7 +7,7 @@ from math import ceil
 
 from .format import EVENTS
 
-from . import event_time, event_pid, event_cpu
+from . import event_time, event_pid, event_cpu, event_job_id
 
 ARROW_LINE_WIDTH = 2 # (pts)
 ARROW_WIDTH      = 12 # (pts)
@@ -60,6 +60,8 @@ TASK_LABEL_COLOR = (0, 0, 0)
 TAG_FONT_SIZE = 12
 TAG_COLOR = (0, 0, 0)
 
+JOB_ID_FONT_SIZE = 10
+
 GRID_WIDTH       = 2
 MAJOR_TICK_WIDTH = 2
 MINOR_TICK_WIDTH = 1
@@ -84,10 +86,20 @@ def center_text(c, x, y, msg):
     c.rel_move_to(-width / 2, height)
     c.show_text(msg)
 
+def center_text_above(c, x, y, msg):
+    x_bear, y_bear, width, height, x_adv, y_adv = c.text_extents(msg)
+    c.move_to(x, y)
+    c.rel_move_to(-width / 2, 0)
+    c.show_text(msg)
+
 def text_left_align_below(c, x, y, msg):
     x_bear, y_bear, width, height, x_adv, y_adv = c.text_extents(msg)
     c.move_to(x, y)
     c.rel_move_to(0, height)
+    c.show_text(msg)
+
+def text_left_align_above(c, x, y, msg):
+    c.move_to(x, y)
     c.show_text(msg)
 
 def vcenter_right_align_text(c, x, y, msg):
@@ -229,6 +241,7 @@ def render(opts, trace):
     c.set_line_width(ARROW_LINE_WIDTH)
 #    c.set_line_cap(cairo.LINE_JOIN_ROUND)
     c.set_line_join(cairo.LINE_JOIN_ROUND)
+    c.set_font_size(JOB_ID_FONT_SIZE)
     arrow_width  = ARROW_WIDTH / 2
     arrow_height = ARROW_HEIGHT * YRES * yscale
     for rec in trace.events_in_range_of_type(opts.start, opts.end, 'ST_RELEASE'):
@@ -244,6 +257,10 @@ def render(opts, trace):
         c.rel_line_to(arrow_width, arrow_width)
         c.stroke()
 
+        if opts.show_job_ids:
+            text_left_align_above(c, rel + 4, y - arrow_height - 4,
+                            "%d" % event_job_id(rec))
+
         dl  = xpos(rec[-1])
         c.new_path()
         c.move_to(dl, y - arrow_height - (GRID_WIDTH - 1))
@@ -252,6 +269,7 @@ def render(opts, trace):
         c.rel_move_to(arrow_width, arrow_width)
         c.rel_line_to(arrow_width, -arrow_width)
         c.stroke()
+
 
     if opts.verbose:
         print 'done.'
@@ -269,6 +287,10 @@ def render(opts, trace):
         c.rel_move_to(-arrow_width, 0)
         c.rel_line_to(2 * arrow_width, 0)
         c.stroke()
+
+        if opts.show_job_ids:
+            text_left_align_above(c, x + 4, y - arrow_height - 4,
+                            "%d" % event_job_id(rec))
 
     if opts.verbose:
         print 'done.'
