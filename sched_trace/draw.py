@@ -138,7 +138,7 @@ def render(opts, trace):
 #    c.scale(xscale, yscale)
 
     if opts.verbose:
-        print '[II] Dawing grid...',
+        print '[II] Drawing grid...',
         sys.stdout.flush()
 
     # draw minor tick lines
@@ -173,9 +173,21 @@ def render(opts, trace):
             center_text(c, x, y, "%dms" % ((time - opts.start) / 1E6))
             time += opts.major_ticks * 1E6
 
+    # draw task labels
+    c.set_font_size(TASK_LABEL_FONT_SIZE)
+    c.set_source_rgb(*TASK_LABEL_COLOR)
+    for pid in tasks:
+        x = -24
+        y = ypos(task_idx[pid] + 0.25)
+        vcenter_right_align_text(c, x, y, "%s/%d" % (trace.task_names[pid], pid))
+        y = ypos(task_idx[pid] + 0.75)
+        vcenter_right_align_text(c, x, y,
+            "(%.2fms, %.2fms)" % (trace.task_wcets[pid] / 1E6,
+                                  trace.task_periods[pid] / 1E6))
+
     if opts.verbose:
         print 'done.'
-        print '[II] Dawing CPU allocations...',
+        print '[II] Drawing CPU allocations...',
         sys.stdout.flush()
 
 
@@ -209,7 +221,7 @@ def render(opts, trace):
 
     if opts.verbose:
         print 'done.'
-        print '[II] Dawing releases and deadlines...',
+        print '[II] Drawing releases and deadlines...',
         sys.stdout.flush()
 
     # draw releases and deadlines
@@ -243,7 +255,7 @@ def render(opts, trace):
 
     if opts.verbose:
         print 'done.'
-        print '[II] Dawing job completions...',
+        print '[II] Drawing job completions...',
         sys.stdout.flush()
 
     # draw job completions
@@ -260,7 +272,7 @@ def render(opts, trace):
 
     if opts.verbose:
         print 'done.'
-        print '[II] Dawing job suspensions...',
+        print '[II] Drawing job suspensions...',
         sys.stdout.flush()
 
     # draw job suspensions
@@ -282,7 +294,7 @@ def render(opts, trace):
 
     if opts.verbose:
         print 'done.'
-        print '[II] Dawing job wake-ups...',
+        print '[II] Drawing job wake-ups...',
         sys.stdout.flush()
 
     # draw job suspensions
@@ -303,32 +315,20 @@ def render(opts, trace):
 
     if opts.verbose:
         print 'done.'
-
-
-    # draw task labels
-    c.set_font_size(TASK_LABEL_FONT_SIZE)
-    c.set_source_rgb(*TASK_LABEL_COLOR)
-    for pid in tasks:
-        x = -24
-        y = ypos(task_idx[pid] + 0.25)
-        vcenter_right_align_text(c, x, y, "%s/%d" % (trace.task_names[pid], pid))
-        y = ypos(task_idx[pid] + 0.75)
-        vcenter_right_align_text(c, x, y,
-            "(%.2fms, %.2fms)" % (trace.task_wcets[pid] / 1E6,
-                                  trace.task_periods[pid] / 1E6))
-
-
-    if opts.verbose:
         print '[II] Finishing PDF...',
         sys.stdout.flush()
+
     pdf.finish()
+
     if opts.verbose:
         print 'done.'
 
     if opts.verbose:
         print '[II] Flushing PDF...',
         sys.stdout.flush()
+
     pdf.flush()
+
     if opts.verbose:
         print 'done.'
 
