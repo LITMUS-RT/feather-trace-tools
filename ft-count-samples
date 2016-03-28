@@ -1,0 +1,50 @@
+#!/bin/bash
+
+EVENTS=""
+for F in $*
+do
+    E=`echo $F | sed -e 's/.*overhead=\([^_.]*\).*/\1/'`
+    EVENTS="$EVENTS $E"
+done
+
+declare -A MATCHES
+
+for E in $EVENTS
+do
+    if [ -z "${MATCHES[$E]}" ]
+    then
+        MATCHES[$E]=`ls $* | egrep "_overhead=${E}[_.]"`
+    fi
+done
+
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "Error: $*"
+	exit 1
+}
+
+SHUFFLE_TRUNCATE=`find_helper shuffle_truncate.py`
+[ -z "$SHUFFLE_TRUNCATE" ] && die "Can't find 'shuffle_truncate.py' utility."
+
+for E in ${!MATCHES[@]}
+do
+    FILES="${MATCHES[$E]}"
+    if [ ! -z "$FILES" ]
+    then
+    	COUNT=`$SHUFFLE_TRUNCATE --count --only-min $FILES`
+	    printf "%20s, %7d\n" "$E" "$COUNT"
+    fi
+done
+

@@ -1,0 +1,62 @@
+#!/bin/bash
+
+set -e
+
+COUNTS="$1"
+shift
+
+EVENTS=""
+for F in $*
+do
+    E=`echo $F | sed -e 's/.*overhead=\([^_.]*\).*/\1/'`
+    EVENTS="$EVENTS $E"
+done
+
+declare -A MATCHES
+
+for E in $EVENTS
+do
+    if [ -z "${MATCHES[$E]}" ]
+    then
+        MATCHES[$E]=`ls $* | egrep "_overhead=${E}[_.]"`
+    fi
+done
+
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "Error: $*"
+	exit 1
+}
+
+SHUFFLE_TRUNCATE=`find_helper ft-shuffle-truncate`
+[ -z "$SHUFFLE_TRUNCATE" ] && die "Can't find 'ft-shuffle-truncate' utility."
+
+EVENTS=`awk -F ',' '{print $1}' $COUNTS`
+
+for E in ${!MATCHES[@]}
+do
+    FILES="${MATCHES[$E]}"
+    CUTOFF=`awk -F ',' "/ $E,/ {print \\$2}" $COUNTS`
+    if [ -z "$FILES" ]
+    then
+    	echo "[EE] No files for $E."
+    elif (( $CUTOFF == 0 ))
+    then
+        echo "[EE] Cutoff for $E is zero."
+    else
+        echo "$E -> $CUTOFF"
+        $SHUFFLE_TRUNCATE -c $CUTOFF $FILES
+    fi
+done

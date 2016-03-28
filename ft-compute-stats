@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+
+from __future__ import division
+
+import numpy
+
+import optparse
+import sys
+import os
+
+from os.path import splitext
+
+
+def decode_key_value_filename(name):
+    "Map key=value_otherkey=other-value names to proper dictionary."
+    params = {}
+    parts = name.split('_')
+    for p in parts:
+        kv = p.split('=')
+        k = kv[0]
+        v = kv[1] if len(kv) > 1 else None
+        params[k] = v
+    return params
+
+
+def stats_for_file(fname, scale):
+    n    = 0
+    max  = 0
+    p95  = 0
+    p99  = 0
+    p999 = 0
+    min  = 0
+    med  = 0
+    avg  = 0
+    std  = 0
+    var  = 0
+
+    size = os.stat(fname).st_size
+    if size:
+        samples = numpy.memmap(fname, dtype='float32', mode='c')
+
+        n = len(samples)
+        if n > 0:
+            samples *= scale
+            max  = numpy.amax(samples)
+            p95  = numpy.percentile(samples, 95.0)
+            p99  = numpy.percentile(samples, 99.0)
+            p999 = numpy.percentile(samples, 99.9)
+            med  = numpy.median(samples)
+            avg  = numpy.mean(samples)
+            min  = numpy.amin(samples)
+
+            std = numpy.std(samples, ddof=1)
+            var = numpy.var(samples)
+
+    return [n, max, p999, p99, p95, avg, med, min, std, var]
+
+o = optparse.make_option
+
+opts = [
+    o('-p', '--cycles-per-usec', action='store', dest='cycles', type='float',
+      help='how many cycles per usec'),
+    ]
+
+defaults = {
+    'cycles'  : None,
+    }
+
+options = None
+
+def fmt_cell(x):
+    if type(x) == str:
+        return "%25s" % x
+    if type(x) == int:
+        return "%25d" % x
+    else:
+        return "%25.5f" % x
+
+def write_header():
+    labels = ["Plugin", "#cores", "Overhead", 'Unit', "#tasks",
+              "#samples",
+              "max", "99.9th perc.", "99th perc.", "95th perc.",
+              "avg", "med", "min", "std", "var", "file"]
+    header = ", ".join(fmt_cell(x) for x in labels)
+    print '#%s' % header[1:]
+
+
+def stats_file(fname):
+    name, ext = splitext(fname)
+    conf = decode_key_value_filename(name)
+
+    if 'overhead' in conf and conf['overhead'].rfind('-LATENCY') != -1:
+        # latency is stored in nanoseconds, not cycles
+        scale = 1 / 1000 # convert from nanoseconds
+        unit = 'microseconds (scale = 1/1000)'
+    elif options.cycles is None:
+        scale = 1
+        unit = 'cycles'
+    else:
+        # convert from cycles to usec
+        scale = 1 / options.cycles
+        unit = 'microseconds (scale = 1/%f)' % options.cycles
+
+    stats = stats_for_file(fname, scale)
+    if 'locks' in conf:
+        sched = '%s_locks=%s' % (conf['scheduler'], conf['locks'])
+    elif 'scheduler' in conf:
+        sched = conf['scheduler']
+    else:
+        sched = 'UNKNOWN'
+
+    ohead = conf['overhead'] if 'overhead' in conf else 'UNKNOWN'
+    n = conf['n'] if 'n' in conf else '*'
+    m = conf['m'] if 'm' in conf else '*'
+
+    info = [sched, m, ohead, unit, n]
+    finfo = [fname]
+    print ", ".join([fmt_cell(x) for x in  info + stats + finfo])
+    sys.stdout.flush()
+
+if __name__ == '__main__':
+    # FIXME: would be nicer with argparse
+    parser = optparse.OptionParser(option_list=opts)
+    parser.set_defaults(**defaults)
+    (options, files) = parser.parse_args()
+
+    try:
+        write_header()
+        for f in files:
+            try:
+                stats_file(f)
+            except IOError, msg:
+                print >> sys.stderr, msg
+    except KeyboardInterrupt:
+        pass

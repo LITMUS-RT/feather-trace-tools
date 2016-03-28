@@ -1,0 +1,89 @@
+#!/bin/bash
+
+STRIP_CMD=""
+
+function add_strip()
+{
+    TAG=$1
+    STRIP_CMD="$STRIP_CMD -e s/_${TAG}=[^_]*//"
+}
+
+while true
+do
+    case "$1" in
+	-n | --task-count)
+	    shift
+	    add_strip n
+	    ;;
+
+	-c | --cpu)
+	    shift
+	    add_strip cpu
+	    ;;
+
+	-m | --msg)
+	    shift
+	    add_strip msg
+	    ;;
+
+	-s | --seq)
+	    shift
+	    add_strip seq
+	    ;;
+
+	-u | --util)
+	    shift
+	    add_strip u
+	    ;;
+
+	-l | --locks)
+	    shift
+	    add_strip locks
+	    ;;
+
+	-x | --custom)
+	    shift
+	    add_strip $1
+	    shift
+	    ;;
+
+	--std)
+	    shift
+	    add_strip n
+	    add_strip cpu
+	    add_strip msg
+	    add_strip seq
+	    add_strip u
+	    ;;
+
+      *)
+	  break
+	  ;;
+    esac
+done
+
+if [ -z "$STRIP_CMD" ]
+then
+    echo "Error: no fields to strip specified."
+    exit 1
+fi
+
+function do_append() {
+    TARGET=`basename $1 | sed $STRIP_CMD`
+    TARGET="combined-$TARGET"
+    printf "\n[$NUM/$TOTAL] Combining $1 -> $TARGET\n"
+    cat $1 >> $TARGET
+}
+
+TOTAL=$#
+NUM=0
+
+echo "File names will be mangled with: sed $STRIP_CMD"
+
+
+while [ "" != "$*" ]
+do
+    NUM=$((NUM + 1))
+    do_append "$1"
+    shift
+done

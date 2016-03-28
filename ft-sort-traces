@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	REL_TO_PATH="$PATH_TO_SCRIPT/$2"
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	elif [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$REL_TO_PATH/$1" ]
+	then
+	    echo "$REL_TO_PATH/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "Error: $*"
+	exit 1
+}
+
+SORT=`find_helper ftsort ../feather-trace-tools`
+[ -z "$SORT" ] && die "Can't find 'ftsort' utility."
+
+function do_sort() {
+	printf "[$NUM/$TOTAL] Sorting $1\n"
+	$SORT $1 2>&1
+}
+
+if [ ! -f "$1" ]; then
+    echo  "Usage: ft-sort-traces <FEATHER-TRACE-FILE.bin>+"
+    exit 1
+fi
+
+TOTAL=`echo $* | wc -w`
+
+NUM=0
+
+while [ "" != "$*" ]; do
+    NUM=$((NUM + 1))
+    do_sort $1
+    shift
+done

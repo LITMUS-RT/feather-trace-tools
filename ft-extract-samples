@@ -1,0 +1,75 @@
+#!/bin/bash
+
+PATH_TO_SCRIPT=`dirname $0`
+function find_helper()
+{
+	IN_PATH=`which $1`
+	REL_TO_PATH="$PATH_TO_SCRIPT/$2"
+	if [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$PATH_TO_SCRIPT/$1" ]
+	then
+		echo "$PATH_TO_SCRIPT/$1"
+	elif [ -z "$IN_PATH" ] && [ ! -z "$PATH_TO_SCRIPT" ] &&  [ -x "$REL_TO_PATH/$1" ]
+	then
+	    echo "$REL_TO_PATH/$1"
+	else
+		echo "$IN_PATH"
+	fi
+}
+
+function die()
+{
+	echo "Error: $*"
+	exit 1
+}
+
+SPLITTER=`find_helper ft2csv ../feather-trace-tools`
+[ -z "$SPLITTER" ] && die "Can't find 'ftsort' utility."
+
+
+BE_EVENTS="SEND_RESCHED SEND_XCALL QUANTUM_BOUNDARY"
+declare -A XTRA_OPTS
+for E in $BE_EVENTS
+do
+    XTRA_OPTS[$E]="-b"
+done
+
+# for future extension...
+IRQ_EVENTS=""
+for E in $IRQ_EVENTS
+do
+    XTRA_OPTS[$E]="-x ${XTRA_OPTS[$E]}"
+done
+
+OPTS="-r"
+OLD_EXT=bin
+EXT=float32 # NumPy float32 dtype format
+
+function do_split() {
+	printf "\n[$NUM/$TOTAL] Extracting samples from $1\n"
+	PRESENT=`$SPLITTER -l "$1" | sed -e 's/_START//' -e 's/_END//' | sort | uniq`
+	echo $1 '->' $PRESENT
+
+	for E in $PRESENT; do
+	    EP=${E/_/-}
+	    WHERE=`basename "$1" | sed -e "s/[.]${OLD_EXT}//"`
+	    TARGET="${WHERE}_overhead=$EP.$EXT"
+	    echo $1 $E ">>" $TARGET
+	    $SPLITTER $OPTS ${XTRA_OPTS[$E]} $E "$1" >> $TARGET
+	done
+}
+
+if [ ! -f "$1" ]; then
+    echo  "Usage: ft-extract-samples <FEATHER-TRACE-FILE.bin>+"
+    exit 1
+fi
+
+TOTAL=$#
+NUM=0
+
+
+while [ "" != "$*" ]
+do
+    NUM=$((NUM + 1))
+    do_split "$1"
+    shift
+done
