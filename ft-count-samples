@@ -35,8 +35,8 @@ function die()
 	exit 1
 }
 
-SHUFFLE_TRUNCATE=`find_helper shuffle_truncate.py`
-[ -z "$SHUFFLE_TRUNCATE" ] && die "Can't find 'shuffle_truncate.py' utility."
+SHUFFLE_TRUNCATE=`find_helper ft-shuffle-truncate`
+[ -z "$SHUFFLE_TRUNCATE" ] && die "Can't find 'ft-shuffle-truncate' utility."
 
 for E in ${!MATCHES[@]}
 do
