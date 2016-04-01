@@ -80,6 +80,7 @@ def main(args=sys.argv[1:]):
         opts.output = default_output_name(opts.file)
 
     try:
+        opts.file = [f for f in opts.file if os.stat(f).st_size > 0]
         trace = SchedTrace(opts.file)
     except IOError, msg:
         print 'Could not load trace files (%s)' % msg
