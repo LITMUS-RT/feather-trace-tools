@@ -94,7 +94,7 @@ def main(args=sys.argv[1:]):
             if trace.system_releases:
                 opts.start += trace.system_releases[0]
             else:
-                opts.start += trace.find_earliest_event
+                opts.start += trace.earliest_event_time
 
     if opts.end:
         # convert from ms
@@ -104,7 +104,7 @@ def main(args=sys.argv[1:]):
             if trace.system_releases:
                 opts.end += trace.system_releases[0]
             else:
-                opts.end += trace.find_earliest_event
+                opts.end += trace.earliest_event_time
 
     if not opts.start:
         if opts.end and opts.length:
@@ -112,7 +112,7 @@ def main(args=sys.argv[1:]):
         elif trace.system_releases:
             opts.start = trace.system_releases[0]
         else:
-            opts.start = trace.find_earliest_event
+            opts.start = trace.earliest_event_time
 
     if not opts.end:
         if opts.start and opts.length:
