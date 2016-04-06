@@ -92,11 +92,11 @@ do
     COUNT=$((COUNT + 1))
 done
 
-READY=`ls $DIR/*.pid | wc -l`
+READY=`ls $DIR/*.pid 2>/dev/null | wc -l`
 while [[ $READY != $COUNT ]]
 do
     sleep 0.5
-    READY=`ls $DIR/*.pid | wc -l`
+    READY=`ls $DIR/*.pid 2>/dev/null | wc -l`
 done
 
 rm $DIR/*.pid
