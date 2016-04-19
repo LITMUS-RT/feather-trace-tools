@@ -10,6 +10,7 @@ import os
 
 from os.path import splitext
 
+import itertools as it
 
 def decode_key_value_filename(name):
     "Map key=value_otherkey=other-value names to proper dictionary."
@@ -21,6 +22,24 @@ def decode_key_value_filename(name):
         v = kv[1] if len(kv) > 1 else None
         params[k] = v
     return params
+
+def print_rows(rows, first_row_prefix='#', other_rows_prefix=' '):
+    col = 0
+    col_widths = []
+    field_widths = True
+    while field_widths:
+        field_widths = [len(str(row[col])) for row in rows if len(row) > col]
+        if field_widths:
+            col_widths.append(max(field_widths))
+        col += 1
+
+    prefs = it.chain([first_row_prefix], it.repeat(other_rows_prefix))
+
+    for prefix, row in it.izip(prefs, rows):
+        print '%s%s' % (prefix,
+                        ", ".join([' ' * (c - len(str(f))) + str(f)
+                                   for (c, f) in it.izip(col_widths, row)]))
+
 
 
 def stats_for_file(fname, scale):
@@ -68,24 +87,23 @@ defaults = {
 
 options = None
 
-def fmt_cell(x):
+def to_str(x):
     if type(x) == str:
-        return "%25s" % x
+        return x
     if type(x) == int:
-        return "%25d" % x
+        return "%d" % x
     else:
-        return "%25.5f" % x
+        return "%.5f" % x
 
-def write_header():
-    labels = ["Plugin", "#cores", "Overhead", 'Unit', "#tasks",
-              "#samples",
-              "max", "99.9th perc.", "99th perc.", "95th perc.",
-              "avg", "med", "min", "std", "var", "file"]
-    header = ", ".join(fmt_cell(x) for x in labels)
-    print '#%s' % header[1:]
+STATS_HEADERS = [
+    "Plugin", "#cores", "Overhead", 'Unit', "#tasks",
+    "#samples",
+    "max", "99.9th perc.", "99th perc.", "95th perc.",
+    "avg", "med", "min", "std", "var",
+    "file"
+]
 
-
-def stats_file(fname):
+def get_stats(fname):
     name, ext = splitext(fname)
     conf = decode_key_value_filename(name)
 
@@ -115,8 +133,7 @@ def stats_file(fname):
 
     info = [sched, m, ohead, unit, n]
     finfo = [fname]
-    print ", ".join([fmt_cell(x) for x in  info + stats + finfo])
-    sys.stdout.flush()
+    return [to_str(x) for x in  info + stats + finfo]
 
 if __name__ == '__main__':
     # FIXME: would be nicer with argparse
@@ -125,11 +142,13 @@ if __name__ == '__main__':
     (options, files) = parser.parse_args()
 
     try:
-        write_header()
+        rows = []
+        rows.append(STATS_HEADERS)
         for f in files:
             try:
-                stats_file(f)
+                rows.append(get_stats(f))
             except IOError, msg:
                 print >> sys.stderr, msg
+        print_rows(rows)
     except KeyboardInterrupt:
         pass
