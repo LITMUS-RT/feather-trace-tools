@@ -17,43 +17,81 @@ static double nano_to_ms(int64_t ns)
 	return ns * 1E-6;
 }
 
+static void count_preemptions(
+	struct evlink *release,
+	struct evlink *completion,
+	unsigned int *preemptions,
+	unsigned int *migrations)
+{
+	struct evlink *e;
+	int seen_switched_away = 0;
+	u8 last_cpu = 0;
+
+	for (e = release; e != completion; e = e->next) {
+		if (e->rec->hdr.job == release->rec->hdr.job) {
+			switch (e->rec->hdr.type) {
+				case ST_SWITCH_AWAY:
+					seen_switched_away = 1;
+					last_cpu = e->rec->hdr.cpu;
+					break;
+				case ST_SWITCH_TO:
+					if (seen_switched_away)
+			    			(*preemptions)++;
+			    		if (seen_switched_away &&
+			    			e->rec->hdr.cpu != last_cpu)
+			    			(*migrations)++;
+			    		break;
+			    	default:
+			    		break;
+			}
+		}
+	}
+}
+
 static void print_stats(
 	struct task* t,
-	struct st_event_record *release,
-	struct st_event_record *completion)
+	struct evlink *release,
+	struct evlink *completion)
 {
 	int64_t lateness;
 	u64 response;
+	unsigned int preemptions = 0, migrations = 0;
 
-	lateness  = completion->data.completion.when;
-	lateness -= release->data.release.deadline;
-	response  = completion->data.completion.when;
-	response -= release->data.release.release;
+	lateness  = completion->rec->data.completion.when;
+	lateness -= release->rec->data.release.deadline;
+	response  = completion->rec->data.completion.when;
+	response -= release->rec->data.release.release;
+
+	count_preemptions(release, completion, &preemptions, &migrations);
 
 	if (want_ms)
 		printf(" %5u, %5u, %10.2f, %10.2f, %8d, %10.2f, %10.2f, %7d"
-			", %10.2f\n",
-		       release->hdr.pid,
-		       release->hdr.job,
+			", %10.2f, %12u, %12u\n",
+		       release->rec->hdr.pid,
+		       release->rec->hdr.job,
 		       nano_to_ms(per(t)),
 		       nano_to_ms(response),
 		       lateness > 0,
 		       nano_to_ms(lateness),
 		       lateness > 0 ? nano_to_ms(lateness) : 0,
-		       completion->data.completion.forced,
-		       nano_to_ms(completion->data.completion.exec_time));
+		       completion->rec->data.completion.forced,
+		       nano_to_ms(completion->rec->data.completion.exec_time),
+		       preemptions,
+		       migrations);
 	else
 		printf(" %5u, %5u, %10llu, %10llu, %8d, %10lld, %10lld, %7d"
-			", %10llu\n",
-		       release->hdr.pid,
-		       release->hdr.job,
+			", %10llu, %12u, %12u\n",
+		       release->rec->hdr.pid,
+		       release->rec->hdr.job,
 		       (unsigned long long) per(t),
 		       (unsigned long long) response,
 		       lateness > 0,
 		       (long long) lateness,
 		       lateness > 0 ? (long long) lateness : 0,
-		       completion->data.completion.forced,
-		       (unsigned long long) completion->data.completion.exec_time);
+		       completion->rec->data.completion.forced,
+		       (unsigned long long) completion->rec->data.completion.exec_time,
+		       preemptions,
+		       migrations);
 }
 
 static void print_task_info(struct task *t)
@@ -173,7 +211,7 @@ int main(int argc, char** argv)
 	}
 
 	/* print header */
-	printf("#%5s, %5s, %10s, %10s, %8s, %10s, %10s, %7s, %10s\n",
+	printf("#%5s, %5s, %10s, %10s, %8s, %10s, %10s, %7s, %10s, %12s, %12s\n",
 	       "Task",
 	       "Job",
 	       "Period",
@@ -182,7 +220,9 @@ int main(int argc, char** argv)
 	       "Lateness",
 	       "Tardiness",
 	       "Forced?",
-	       "ACET");
+	       "ACET",
+	       "Preemptions",
+	       "Migrations");
 
 	/* print stats for each task */
 	for_each_task(t) {
@@ -204,7 +244,7 @@ int main(int argc, char** argv)
 				while (pos && count < MAX_COMPLETIONS_TO_CHECK) {
 					find(pos, ST_COMPLETION);
 					if (pos->rec->hdr.job == rec->hdr.job) {
-						print_stats(t, rec, pos->rec);
+						print_stats(t, e, pos);
 						break;
 					} else {
 						pos = pos->next;
