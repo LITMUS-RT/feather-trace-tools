@@ -75,7 +75,8 @@ NUM_CPUS=`egrep -c '^processor|online'   /proc/cpuinfo`
 # 508 - sched_trace_task_resume
 # 509 - sched_trace_action
 # 510 - sched_trace_sys_release
-ST_IDS="501 502 503 504 505 506 507 508 509 510"
+# 511 - sched_trace_last_suspension_as_completion
+ST_IDS="501 502 503 504 505 506 507 508 509 510 511"
 
 DIR=`mktemp -d` || die "mktemp failed"
 
