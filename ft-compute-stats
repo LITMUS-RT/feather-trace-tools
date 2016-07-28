@@ -166,7 +166,7 @@ def get_stats(fname):
     return [to_str(x) for x in  info + stats + finfo]
 
 def make_bins(max_val):
-    num_bins = int(ceil(max_val / options.bin_size))
+    num_bins = int(ceil(max_val / options.bin_size)) + 1
     return [x * options.bin_size for x in range(0, num_bins)]
 
 def hist_file(fname, scale):
