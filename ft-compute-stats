@@ -102,9 +102,13 @@ opts = [
       help='give relative frequency, not absolute sample counts'),
     o('-c', '--cumulative', action='store_true', dest='cumulative',
       help='report cumulative counts (i.e., CDF)'),
+    o(None, '--percentiles', action='store_true', dest='want_percentiles',
+      help='produce table of percentiles'),
+    o('-r', '--resolution', action='store', dest='resolution', type='float',
+      help='set resolution of percentiles table'),
     o(None, '--percent', action='store_true', dest='want_percent',
       help='give relative frequency as a percentage'),
-    ]
+]
 
 defaults = {
     'cycles'    : None,
@@ -113,7 +117,9 @@ defaults = {
     'normalize' : False,
     'want_percent' : False,
     'cumulative' : False,
-    }
+    'want_percentiles' : False,
+    'resolution' : 0.1,
+}
 
 options = None
 
@@ -169,6 +175,16 @@ def make_bins(max_val):
     num_bins = int(ceil(max_val / options.bin_size)) + 1
     return [x * options.bin_size for x in range(0, num_bins)]
 
+def iter_percentiles(resolution):
+    percentile = 0.0
+    while percentile < 100:
+        yield percentile
+        percentile += resolution
+    yield 100.0
+
+def make_percentiles(resolution):
+    return list(iter_percentiles(resolution))
+
 def hist_file(fname, scale):
     max_val = 0
     hist = []
@@ -189,6 +205,20 @@ def hist_file(fname, scale):
                 hist = [h/n * (100 if options.want_percent else 1) for h in hist]
 
     return (max_val, hist)
+
+
+def percentiles_file(fname, percentiles):
+    percs = []
+
+    size = os.stat(fname).st_size
+    if size:
+        samples = numpy.memmap(fname, dtype='float32', mode='c')
+
+        n = len(samples)
+        if n > 0:
+            percs = numpy.percentile(samples, percentiles)
+
+    return percs
 
 
 if __name__ == '__main__':
@@ -212,6 +242,22 @@ if __name__ == '__main__':
                     print >> sys.stderr, msg
             bins = ['Bin'] + make_bins(max_val)
             print_cols([bins] + cols)
+            print '# Columns:'
+            for i, f in enumerate(col_names):
+                print '# (%d) %s' % (i + 1, f)
+        elif options.want_percentiles:
+            cols = []
+            percentiles = make_percentiles(options.resolution)
+            col_names = []
+            for i, f in enumerate(files):
+                try:
+                    percs = percentiles_file(f, percentiles)
+                    cols.append([i + 1] + [to_str(x) for x in percs])
+                    col_names.append(f)
+                except IOError, msg:
+                    print >> sys.stderr, msg
+            perc = ['Percentile'] + [to_str(x) for x in percentiles]
+            print_cols([perc] + cols)
             print '# Columns:'
             for i, f in enumerate(col_names):
                 print '# (%d) %s' % (i + 1, f)
