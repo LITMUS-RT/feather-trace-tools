@@ -132,7 +132,7 @@ def to_str(x):
         return "%.5f" % x
 
 STATS_HEADERS = [
-    "Plugin", "#cores", "Overhead", 'Unit', "#tasks",
+    "Plugin", "#cores", "Overhead", 'Unit', 'Scale', "#tasks",
     "#samples",
     "max", "99.9th perc.", "99th perc.", "95th perc.",
     "avg", "med", "min", "std", "var",
@@ -146,14 +146,17 @@ def get_stats(fname):
     if 'overhead' in conf and conf['overhead'].rfind('-LATENCY') != -1:
         # latency is stored in nanoseconds, not cycles
         scale = 1 / 1000 # convert from nanoseconds
-        unit = 'microseconds (scale = 1/1000)'
+        unit = 'microseconds'
+        scale_desc = '1/1000.00'
     elif options.cycles is None:
         scale = 1
         unit = 'cycles'
+        scale_desc = '1'
     else:
         # convert from cycles to usec
         scale = 1 / options.cycles
-        unit = 'microseconds (scale = 1/%f)' % options.cycles
+        unit = 'microseconds'
+        scale_desc = '1/%.2f' % options.cycles
 
     stats = stats_for_file(fname, scale)
     if 'locks' in conf:
@@ -167,7 +170,7 @@ def get_stats(fname):
     n = conf['n'] if 'n' in conf else '*'
     m = conf['m'] if 'm' in conf else '*'
 
-    info = [sched, m, ohead, unit, n]
+    info = [sched, m, ohead, unit, scale_desc, n]
     finfo = [fname]
     return [to_str(x) for x in  info + stats + finfo]
 
