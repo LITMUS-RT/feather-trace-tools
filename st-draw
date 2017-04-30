@@ -50,6 +50,10 @@ def parse_args():
     parser.add_argument('-r', '--relative', action='store_true',
         help='interpret -f/-u options relative to system release')
 
+    parser.add_argument('-q', '--start-on-multiple', metavar='QUANTUM',
+        type=float, default=None, dest='quantum',
+        help='let the schedule start on an integer multiple of QUANTUM')
+
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='output some information while drawing')
 
@@ -113,6 +117,10 @@ def main(args=sys.argv[1:]):
             opts.start = trace.system_releases[0]
         else:
             opts.start = trace.earliest_event_time
+
+    if opts.quantum:
+        q = ms2ns(opts.quantum)
+        opts.start = (int(opts.start) // int(q)) * q
 
     if not opts.end:
         if opts.start and opts.length:
