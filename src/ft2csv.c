@@ -32,6 +32,7 @@
 static int want_interleaved    = 1;
 static int want_best_effort    = 0;
 static int want_interrupted    = 0;
+static int max_interleaved_skipped = 0;
 static int find_by_pid         = AUTO_SELECT;
 
 /* discard samples from a specific CPU */
@@ -121,10 +122,12 @@ static struct timestamp* next_pid(struct timestamp* first, struct timestamp* end
 {
 	struct timestamp* pos;
 	uint32_t last_seqno = 0, next_seqno = 0;
+	int event_count = 0;
 
 
 	last_seqno = first->seq_no;
 	for (pos = first + 1; pos < end;  pos++) {
+		event_count = event_count + 1;
 		/* check for for holes in the sequence number */
 		next_seqno = last_seqno + 1;
 		if (next_seqno != pos->seq_no) {
@@ -150,10 +153,11 @@ static struct timestamp* next_pid(struct timestamp* first, struct timestamp* end
 			if (pos->event == id1 || pos->event == id2)
 				return pos;
 			else
-				/* Don't allow unexpected IDs interleaved.
-				 * Tasks are sequential, there shouldn't be
-				 * anything else. */
-				return NULL;
+				if (event_count > max_interleaved_skipped)
+					/* Don't allow unexpected IDs interleaved.
+					 * Tasks are sequential, there shouldn't be
+					 * anything else. */
+					return NULL;
 		}
 	}
 	return NULL;
@@ -262,7 +266,7 @@ static void find_event_by_pid(struct timestamp* first, struct timestamp* end)
 	int interrupted = 0;
 
 	/* special case: take suspensions into account */
-	if (first->event >= SUSPENSION_RANGE) {
+	if (first->event >= SUSPENSION_RANGE && max_interleaved_skipped == 0) {
 		second = accumulate_exec_time(first, end,
 					      first->event + 1, &exec_time,
 					      &interrupted);
@@ -387,9 +391,11 @@ static void list_ids(struct timestamp* start, struct timestamp* end)
 
 
 #define USAGE								\
-	"Usage: ft2csv [-r] [-i] [-b] [-a CPU] [-o CPU] <event_name>  <logfile> \n" \
+	"Usage: ft2csv [-r] [-i] [-s NUM] [-b] [-a CPU] [-o CPU] <event_name>  <logfile> \n" \
 	"   -i: ignore interleaved  -- ignore samples if start "	\
 	"and end are non-consecutive\n"					\
+	"   -s: max_interleaved_skipped -- maximum number of skipped interleaved samples. "	\
+	"must be used in conjunction with [-i] option \n" \
 	"   -b: best effort         -- don't skip non-rt time stamps \n" \
 	"   -r: raw binary format   -- don't produce .csv output \n"	\
 	"   -a: avoid CPU           -- skip samples from a specific CPU\n" \
@@ -408,7 +414,7 @@ static void die(char* msg)
 	exit(1);
 }
 
-#define OPTS "ibra:o:pexhl"
+#define OPTS "ibrs:a:o:pexhl"
 
 int main(int argc, char** argv)
 {
@@ -425,6 +431,11 @@ int main(int argc, char** argv)
 		case 'i':
 			want_interleaved = 0;
 			fprintf(stderr, "Discarging interleaved samples.\n");
+			break;
+		case 's':
+			max_interleaved_skipped = atoi(optarg);
+			fprintf(stderr, "skipping up to %d interleaved samples.\n",
+					max_interleaved_skipped);
 			break;
 		case 'x':
 			want_interrupted = 1;
